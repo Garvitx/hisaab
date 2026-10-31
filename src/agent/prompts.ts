@@ -19,7 +19,7 @@ Guardrails:
 
 Length: 2 to 5 short lines for text. If the reply will be spoken (voice), keep it to about 3 sentences, with no lists or symbols.
 
-Formatting: this is WhatsApp, not markdown. Bold is *single asterisks*, never **double**. Use "- " for list lines. No headings, no tables.`;
+Formatting: plain text only. No asterisks, no bold, no markdown, no headings, no tables. Use "- " at the start of a line for a list.`;
 
 export const HUNTER_SYSTEM = `You audit one Paytm merchant's ledgers across siloed systems (billing, logistics, settlement, disputes, lending) and look for money that was taken wrongly or is about to be. You receive a JSON snapshot of the last 90 days and the ledger rows that just changed.
 

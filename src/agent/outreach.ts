@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import type { Merchant } from "@/generated/prisma/client";
 import { sendButtons, sendText, sendVoice } from "@/channels/whatsapp";
-import { conversationFor, logMessage } from "./concierge";
+import { conversationFor, logMessage, plain } from "./concierge";
 import { approvalMessage, merchantMessage } from "./notifier";
 import { trace } from "./trace";
 
@@ -11,7 +11,8 @@ const lang = (l: string) => (l === "en" ? "en" : l === "hi" ? "hi" : "hinglish")
 
 // Only the demo merchant has a real phone; the other 29 are generated numbers that may
 // belong to strangers, so they get a dashboard-only mirror and never a real send.
-export async function say(m: Merchant, text: string, o: { voice?: boolean; case_id?: string } = {}) {
+export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_id?: string } = {}) {
+  const text = plain(raw);
   const conv = await conversationFor(m.id, "WA");
   let wamid: string | undefined;
   if (m.is_demo) {

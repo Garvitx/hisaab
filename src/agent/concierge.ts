@@ -9,6 +9,11 @@ import { istDay } from "@/engine/queries";
 
 const HISTORY = 12;
 
+// Backstop for the prompt rule: replies show up raw on the dashboard and get read aloud,
+// so markdown emphasis and headings are stripped.
+export const plain = (t: string) =>
+  t.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,!?)]|$)/g, "$1$2").replace(/^#{1,6}\s+/gm, "").replace(/__([^_\n]+)__/g, "$1");
+
 export async function conversationFor(merchant_id: string, channel: Channel) {
   const c = await db.conversation.findFirst({ where: { merchant_id, channel }, orderBy: { opened_at: "desc" } });
   return c ?? db.conversation.create({ data: { merchant_id, channel } });
@@ -70,7 +75,7 @@ export async function converse(o: {
     exec: (name, input) => execTool(name, input, { merchant_id: o.merchant.id, conversation_id: o.conversation_id, image: o.image ? { url: o.image.url } : null }),
     ids: { conversation_id: o.conversation_id },
   });
-  const reply = r.text || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
+  const reply = plain(r.text) || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
   await trace({ kind: "MESSAGE", name: "concierge.reply", conversation_id: o.conversation_id, payload: { text: reply, stop: r.stop } });
   return reply;
 }
