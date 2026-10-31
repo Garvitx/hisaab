@@ -3,12 +3,13 @@
 import { db } from "@/lib/db";
 import type { Merchant } from "@/generated/prisma/client";
 import { sendButtons, sendText, sendVoice } from "@/channels/whatsapp";
-import { conversationFor, logMessage, plain } from "./concierge";
+import { conversationFor, logMessage, plain, ttsLang } from "./concierge";
 import { approvalMessage, merchantMessage } from "./notifier";
 import { trace } from "./trace";
 import { activeDemoMid } from "@/lib/demo";
 
-const lang = (l: string) => (l === "en" ? "en" : l === "hi" ? "hi" : "hinglish") as "hi" | "hinglish" | "en";
+// The language the merchant picked in chat, else their profile language.
+const chosen = async (m: Merchant) => (await conversationFor(m.id, "WA")).language ?? m.language;
 
 // Real sends only ever go to the demo phone: for the seeded demo merchant, and for whichever
 // merchant the switcher has the phone acting as. The other merchants' numbers are generated
@@ -20,7 +21,7 @@ export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_i
   const phone = process.env.DEMO_MERCHANT_PHONE;
   if (phone && (m.is_demo || m.id === (await activeDemoMid()))) {
     if (o.voice) {
-      const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, lang(m.language)).catch(() => ({ ok: false }));
+      const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, ttsLang(conv.language ?? m.language)).catch(() => ({ ok: false }));
       if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text, media_url: v.link, wamid: v.wamid });
     }
     wamid = (await sendText(phone, text)).wamid;
@@ -55,7 +56,7 @@ export async function notifyCase(case_id: string) {
   if (pendingFindings.length) amounts.under_review = sumBy(pendingFindings);
   if (!fixed.length && !pendingFindings.length && verified.length) amounts.amount = sumBy(verified);
 
-  const text = await merchantMessage({ merchant: { name: m.owner_name, language: m.language }, found, outcome, amounts, detail });
+  const text = await merchantMessage({ merchant: { name: m.owner_name, language: await chosen(m) }, found, outcome, amounts, detail });
   await say(m, text, { voice: true, case_id });
 
   for (const a of pending.filter((a) => a.tier === "APPROVAL")) await requestApproval(a.id);
@@ -86,7 +87,7 @@ export async function notifyDecision(action_id: string) {
   if (a.type === "close_subscription" || a.type === "close_loan") return;
   const outcome = a.status === "UNDONE" ? "undone" : a.status === "REJECTED" ? "rejected" : "fixed";
   const text = await merchantMessage({
-    merchant: { name: m.owner_name, language: m.language },
+    merchant: { name: m.owner_name, language: await chosen(m) },
     found: a.finding?.title ?? a.case.summary,
     outcome,
     amounts: a.amount ? { [outcome === "fixed" ? "refunded" : "amount"]: a.amount } : {},

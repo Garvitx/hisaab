@@ -14,6 +14,7 @@ const OPS_NAV = [
   { href: "/ops/merchants", label: "Merchants" },
   { href: "/ops/policy", label: "Policy" },
   { href: "/ops/audit", label: "Audit" },
+  { href: "/lab", label: "Lab" },
   { href: "/demo", label: "Demo" },
 ];
 
@@ -28,7 +29,7 @@ export function SiteHeader() {
     } catch {}
   }, []);
   if (path.startsWith("/pay")) return null; // the pay page has its own shell
-  const role: Role = path.startsWith("/m/") ? "merchant" : path.startsWith("/ops") ? "ops" : stored;
+  const role: Role = path.startsWith("/m/") ? "merchant" : path.startsWith("/ops") || path.startsWith("/lab") ? "ops" : stored;
 
   const pick = (r: Role) => {
     try {

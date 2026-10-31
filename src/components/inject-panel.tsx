@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { inr } from "@/components/format";
@@ -84,6 +85,9 @@ export function InjectPanel({ k }: { k: string }) {
       <div>
         <h1 className="text-2xl">Chaos panel</h1>
         <p className="text-ink-2">Break a ledger. Hisaab should catch it within seconds.</p>
+        <Link href={`/lab?k=${encodeURIComponent(k)}`} className="mt-1 inline-block rounded text-sm font-semibold text-sky-text hover:underline">
+          Open the test lab for expected outcomes and pass or fail
+        </Link>
       </div>
 
       <Panel title="Target">

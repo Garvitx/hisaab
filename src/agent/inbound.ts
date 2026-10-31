@@ -1,14 +1,28 @@
 // Routes one inbound WhatsApp message by sender (CLAUDE.md section 9).
-import { fetchMedia, parseInbound, samePhone, sendText, sendVoice, uploadPublicMedia, type Inbound } from "@/channels/whatsapp";
+import { fetchMedia, parseInbound, samePhone, sendButtons, sendText, sendVoice, uploadPublicMedia, type Inbound } from "@/channels/whatsapp";
 import { stt } from "@/channels/voice";
 import { approveAction, rejectAction } from "@/engine/actions";
 import * as merchants from "@/systems/merchants";
 import { activeDemoMid } from "@/lib/demo";
-import { converse, conversationFor, logMessage } from "./concierge";
+import { converse, conversationFor, logMessage, ttsLang } from "./concierge";
+import { db } from "@/lib/db";
 import { notifyDecision } from "./outreach";
 import { trace } from "./trace";
 
-const lang = (l: string) => (l === "en" ? "en" : l === "hi" ? "hi" : "hinglish") as "hi" | "hinglish" | "en";
+const CHANGE = /^\s*(change language|language|bhasha badlo|bhasha badliye|bhasha|भाषा बदलो|भाषा)\s*[.!?]*\s*$/i;
+const PICKED: Record<string, string> = {
+  hi: "ठीक है, अब से हम हिंदी में बात करेंगे।",
+  hinglish: "Theek hai, ab se Hinglish mein baat karenge.",
+  en: "Great, I'll reply in English from now on.",
+  haryanvi: "Thik sai, ib te Haryanvi mein baat karange.",
+};
+
+// First chat (or "change language"): ask once, with buttons, and hold their question meanwhile.
+async function askLanguage(to: string, owner: string, conversation_id: string) {
+  const body = `Namaste ${owner} ji! Main Hisaab hoon, aapka Paytm Business saathi.\nAap kis bhasha mein baat karna chahenge? Which language would you like to chat in?\n\n(Haryanvi ke liye "Haryanvi" likhiye)`;
+  const r = await sendButtons(to, body, [{ id: "lang:hi", title: "हिंदी" }, { id: "lang:hinglish", title: "Hinglish" }, { id: "lang:en", title: "English" }]);
+  await logMessage({ conversation_id, direction: "OUT", type: "BUTTONS", text: body, wamid: r.wamid });
+}
 
 export async function handleInbound({ msg }: Inbound) {
   if (typeof msg?.from !== "string" || !msg.from) return;
@@ -50,11 +64,29 @@ export async function handleInbound({ msg }: Inbound) {
   }
   if (p.kind === "text" || p.kind === "button") await logMessage({ conversation_id: conv.id, direction: "IN", type: "TEXT", text, wamid: msg.id });
 
-  const reply = await converse({ merchant, conversation_id: conv.id, text, voice, spoken, image });
+  // Language: chosen once per chat, then fixed. A button tap or "Haryanvi" sets it; "change language" asks again.
+  let language = conv.language;
+  const picked = p.kind === "button" && p.id.startsWith("lang:") ? p.id.slice(5) : /^\s*haryanvi\s*[.!]*\s*$/i.test(text) ? "haryanvi" : null;
+  if (picked) {
+    language = picked;
+    const held = conv.pending_text;
+    await db.conversation.update({ where: { id: conv.id }, data: { language, pending_text: null } });
+    if (!held) {
+      const ok = PICKED[language] ?? PICKED.hinglish;
+      const sent = await sendText(msg.from, ok);
+      return void (await logMessage({ conversation_id: conv.id, direction: "OUT", type: "TEXT", text: ok, wamid: sent.wamid }));
+    }
+    text = held; // now answer the question they asked first
+  } else if (CHANGE.test(text) || !language) {
+    if (!language && text) await db.conversation.update({ where: { id: conv.id }, data: { pending_text: text } });
+    return askLanguage(msg.from, merchant.owner_name.split(" ")[0], conv.id);
+  }
+
+  const reply = await converse({ merchant, conversation_id: conv.id, text, voice, spoken, image, language });
 
   // Voice in → voice note plus the same text (CLAUDE.md section 9). Only the demo merchant has a real phone.
   if (voice) {
-    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, spoken?.startsWith("en") ? "en" : lang(merchant.language)).catch((e) => ({ ok: false, error: (e as Error).message }));
+    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, ttsLang((await db.conversation.findUnique({ where: { id: conv.id }, select: { language: true } }))?.language ?? language)).catch((e) => ({ ok: false, error: (e as Error).message }));
     if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text: reply, media_url: v.link, wamid: v.wamid });
     else console.error("[wa] voice reply failed", v.error);
   }

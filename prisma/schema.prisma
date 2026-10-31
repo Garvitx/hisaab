@@ -440,6 +440,8 @@ model Conversation {
   channel         Channel
   opened_at       DateTime     @default(now())
   last_inbound_at DateTime?
+  language        String? // the merchant's chosen reply language: hi | hinglish | en | haryanvi
+  pending_text    String? // the first question, held while they pick a language
   messages        Message[]
   trace_events    TraceEvent[]
 

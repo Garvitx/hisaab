@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { timingSafeEqual } from "node:crypto";
 import { InjectPanel } from "@/components/inject-panel";
+import { injectTokenOk } from "@/components/inject-token";
 import { Panel, Skeleton } from "@/components/bits";
 
 export const metadata: Metadata = { title: "Hisaab chaos panel", description: "Inject anomalies into the mock ledgers and watch Hisaab catch them." };
 
-// Same fail-closed check as POST /api/inject: no INJECT_TOKEN set means locked.
-const ok = (k: string | undefined, want = process.env.INJECT_TOKEN) =>
-  !!want && !!k && k.length === want.length && timingSafeEqual(Buffer.from(k), Buffer.from(want));
-
 async function Gate({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const k = (await searchParams).k;
-  const key = typeof k === "string" ? k : undefined;
-  if (ok(key)) return <InjectPanel k={key!} />;
+  const { k } = await searchParams;
+  if (injectTokenOk(k)) return <InjectPanel k={k} />;
   return (
     <div className="mx-auto max-w-md pt-10">
       <Panel>

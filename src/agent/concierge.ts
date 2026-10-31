@@ -25,6 +25,15 @@ const isHaryanvi = (t: string) => {
   const hits = t.match(HARYANVI)?.length ?? 0;
   return /[\u0900-\u097F]/.test(t) ? hits >= 1 : hits >= 2 || (hits === 1 && HINGLISH.test(t));
 };
+export const LANGS: Record<string, string> = {
+  hi: "Hindi (Devanagari)",
+  hinglish: "Hinglish (Hindi in Latin letters)",
+  en: "English",
+  haryanvi: "Haryanvi (light and respectful, in Latin letters)",
+};
+// TTS voice for a chosen language; Haryanvi and Hinglish are spoken by the Hindi voice.
+export const ttsLang = (l: string | null | undefined) => (l === "en" ? "en" : l === "hi" ? "hi" : "hinglish") as "hi" | "hinglish" | "en";
+
 export function replyLanguage(text: string, o: { spoken?: string; profile: string }) {
   const hindiScript = o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
   if (isHaryanvi(text)) return "Haryanvi (light and respectful, in the same script the merchant used)";
@@ -63,6 +72,7 @@ export async function converse(o: {
   text: string;
   voice?: boolean;
   spoken?: string; // STT language code for voice notes, e.g. "en-IN"
+  language?: string | null; // chosen on WhatsApp; overrides per-message detection
   image?: { base64: string; mime: string; url: string } | null;
 }) {
   const past = await db.message.findMany({
@@ -83,7 +93,7 @@ export async function converse(o: {
   if (history[0]?.role === "assistant") history.unshift({ role: "user", content: "(conversation resumed)" });
 
   // Volatile facts go in the user turn, after the cached system prompt and tools.
-  const context = `[Merchant: ${o.merchant.owner_name}, ${o.merchant.business_name}, ${o.merchant.city}. Profile language: ${o.merchant.language}. Today (IST): ${istDay()}.${o.voice ? " This message was a voice note; your reply will be spoken." : ""} Reply in: ${replyLanguage(o.text, { spoken: o.spoken, profile: o.merchant.language })}.]`;
+  const context = `[Merchant: ${o.merchant.owner_name}, ${o.merchant.business_name}, ${o.merchant.city}. Profile language: ${o.merchant.language}. Today (IST): ${istDay()}.${o.voice ? " This message was a voice note; your reply will be spoken." : ""} Reply in: ${(o.language && LANGS[o.language]) || replyLanguage(o.text, { spoken: o.spoken, profile: o.merchant.language })}${o.language ? " (the merchant chose this; never switch unless they ask)" : ""}.]`;
   const content: Anthropic.ContentBlockParam[] = [];
   if (o.image) content.push({ type: "image", source: { type: "base64", media_type: o.image.mime as "image/jpeg", data: o.image.base64 } });
   content.push({ type: "text", text: `${context}\n${o.text || (o.image ? "(photo)" : "")}` });
