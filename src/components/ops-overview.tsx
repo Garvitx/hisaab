@@ -10,6 +10,7 @@ import { chime, useHeartbeat, usePoll, type Beat } from "@/components/live";
 import { ago, count, inr, seconds, type Json } from "@/components/format";
 import { CaseStatus, Empty, Failed, OriginBadge, Panel, Skeleton } from "@/components/bits";
 import { Scoreboard } from "@/components/scoreboard";
+import { RootCauses } from "@/components/root-cause-card";
 import { TraceTimeline } from "@/components/trace";
 import { cn } from "@/lib/utils";
 
@@ -197,6 +198,7 @@ export function OpsOverview({ variant = "ops", left }: { variant?: "ops" | "demo
         {pulse}
       </div>
       <Scoreboard s={o?.scoreboard ?? null} />
+      {o && <RootCauses list={o.rootCauses} />}
       {body ?? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <Queue o={o!} active={o!.active?.id} onPick={setPin} />

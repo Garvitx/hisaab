@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { detectMerchant } from "@/engine/detect";
 import { hunt } from "@/agent/hunter";
 import { notifyCase } from "@/agent/outreach";
+import { scheduleRootCauses } from "@/agent/root-cause";
+import { after } from "next/server";
 
 type Ev = { id: bigint; schema: string; table: string; row_id: string; op: string; merchant_id: string | null; created_at: Date };
 
@@ -70,6 +72,12 @@ export async function drain(secret: string | null = null) {
       }
     }),
   );
+  // New cases may share one bug across shops. after() keeps a serverless function alive for the
+  // debounced pass; outside a request (scripts) it throws and the caller awaits the promise itself.
+  if (merchants.some((m) => m.case_id)) {
+    const p = scheduleRootCauses();
+    try { after(() => p); } catch {}
+  }
   return { drained: rows.length, merchants, ms: Date.now() - t0 };
 }
 

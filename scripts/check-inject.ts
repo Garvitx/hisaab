@@ -13,9 +13,9 @@ if (process.env.ALLOW_LIVE_CHECKS !== "1") {
 const FLAGS = `SELECT
   (SELECT count(*) FROM billing.charges c JOIN billing.subscriptions s ON s.id = c.subscription_id
      JOIN logistics.device_events e ON e.device_id = s.device_id AND e.type IN ('PICKED_UP','RECEIVED_AT_WAREHOUSE')
-     WHERE c.merchant_id = $1 AND c.status <> 'REVERSED' AND to_date(c.period || '-01', 'YYYY-MM-DD') > e.at) charge_after_return,
+     WHERE c.merchant_id = $1 AND c.status NOT IN ('REVERSED', 'BLOCKED') AND to_date(c.period || '-01', 'YYYY-MM-DD') > e.at) charge_after_return,
   (SELECT count(*) FROM billing.charges c JOIN billing.subscriptions s ON s.id = c.subscription_id
-     WHERE c.merchant_id = $1 AND NOT EXISTS (SELECT 1 FROM logistics.device_events e WHERE e.device_id = s.device_id AND e.type = 'DELIVERED')) charge_without_delivery,
+     WHERE c.merchant_id = $1 AND c.status <> 'BLOCKED' AND NOT EXISTS (SELECT 1 FROM logistics.device_events e WHERE e.device_id = s.device_id AND e.type = 'DELIVERED')) charge_without_delivery,
   (SELECT count(*) FROM (SELECT 1 FROM billing.charges WHERE merchant_id = $1 AND status = 'BILLED' AND notice_sent_at IS NULL HAVING sum(amount) > 2000) x) silent_deduction,
   (SELECT count(*) FROM disputes.disputes d JOIN settlement.payments p ON p.id = d.payment_id WHERE d.merchant_id = $1 AND p.order_ref IS NULL AND d.merchant_contested) orphan_dispute,
   (SELECT count(*) FROM lending.loans l WHERE l.merchant_id = $1 AND l.status = 'ACTIVE' AND l.settlement_offer_amount IS NOT NULL

@@ -20,8 +20,10 @@ export const devices = (merchant_id: string) =>
 export const device = (id: string) =>
   db.device.findUnique({ where: { id }, include: { events: { orderBy: { at: "asc" } } } });
 
-export const addEvent = (device_id: string, type: DeviceEventType, actor = "hisaab", at = new Date()) =>
-  db.deviceEvent.create({ data: { device_id, type, actor, at } });
+export const addEvent = (device_id: string, type: DeviceEventType, actor = "hisaab", at = new Date(), location: string | null = null) =>
+  db.deviceEvent.create({ data: { device_id, type, actor, at, location } });
+
+export const addDevice = (data: { serial: string; model: "SOUNDBOX" | "EDC"; merchant_id: string; last_seen_at: Date }) => db.device.create({ data });
 
 export const deleteEvent = (id: string) => db.deviceEvent.delete({ where: { id } });
 
