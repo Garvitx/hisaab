@@ -14,6 +14,16 @@ const HISTORY = 12;
 export const plain = (t: string) =>
   t.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,!?)]|$)/g, "$1$2").replace(/^#{1,6}\s+/gm, "").replace(/__([^_\n]+)__/g, "$1");
 
+// Which language to answer this message in. Decided in code: the chat history pulls the model
+// toward whatever language came before. ponytail: word-list heuristic for Hinglish vs English.
+const HINGLISH = /\b(hai|hain|kya|kitna|kitne|kitni|mera|meri|mere|aaj|kal|ka|ki|ke|nahi|nahin|paisa|paise|batao|bataiye|aaya|aayega|hoon|karo|kar|raha|rahi|gaya|gayi|kyun|kab|kaise|bhai|ji|se|mein|ko|wala|wapas|kata|kat|bol|chahiye|hua|tha|thi)\b/i;
+export function replyLanguage(text: string, o: { spoken?: string; profile: string }) {
+  if (o.spoken) return o.spoken.startsWith("en") ? "English" : o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
+  if (/[\u0900-\u097F]/.test(text)) return "Hindi (Devanagari)";
+  if (!/[a-z]/i.test(text)) return o.profile === "en" ? "English" : o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
+  return HINGLISH.test(text) ? "Hinglish (Hindi in Latin letters)" : "English";
+}
+
 export async function conversationFor(merchant_id: string, channel: Channel) {
   const c = await db.conversation.findFirst({ where: { merchant_id, channel }, orderBy: { opened_at: "desc" } });
   return c ?? db.conversation.create({ data: { merchant_id, channel } });
@@ -61,7 +71,7 @@ export async function converse(o: {
   if (history[0]?.role === "assistant") history.unshift({ role: "user", content: "(conversation resumed)" });
 
   // Volatile facts go in the user turn, after the cached system prompt and tools.
-  const context = `[Merchant: ${o.merchant.owner_name}, ${o.merchant.business_name}, ${o.merchant.city}. Profile language: ${o.merchant.language}. Today (IST): ${istDay()}.${o.voice ? ` This message was a voice note (spoken language: ${o.spoken ?? "unknown"}); your reply will be spoken.` : ""}]`;
+  const context = `[Merchant: ${o.merchant.owner_name}, ${o.merchant.business_name}, ${o.merchant.city}. Profile language: ${o.merchant.language}. Today (IST): ${istDay()}.${o.voice ? " This message was a voice note; your reply will be spoken." : ""} Reply in: ${replyLanguage(o.text, { spoken: o.spoken, profile: o.merchant.language })}.]`;
   const content: Anthropic.ContentBlockParam[] = [];
   if (o.image) content.push({ type: "image", source: { type: "base64", media_type: o.image.mime as "image/jpeg", data: o.image.base64 } });
   content.push({ type: "text", text: `${context}\n${o.text || (o.image ? "(photo)" : "")}` });

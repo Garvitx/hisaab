@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { replyLanguage } from "./concierge";
+const p = { profile: "hinglish" };
+assert.equal(replyLanguage("How much will I get tomorrow?", p), "English");
+assert.equal(replyLanguage("Is my soundbox online?", p), "English");
+assert.equal(replyLanguage("कल कितना पैसा आएगा?", p), "Hindi (Devanagari)");
+assert.equal(replyLanguage("Kal kitna aayega?", p), "Hinglish (Hindi in Latin letters)");
+assert.equal(replyLanguage("Soundbox bol nahi raha", p), "Hinglish (Hindi in Latin letters)");
+assert.equal(replyLanguage("आज का हिसाब", { spoken: "en-IN", profile: "hinglish" }), "English");
+assert.equal(replyLanguage("आज का हिसाब", { spoken: "hi-IN", profile: "hinglish" }), "Hinglish (Hindi in Latin letters)");
+console.log("lang ok");
