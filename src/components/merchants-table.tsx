@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Smartphone } from "lucide-react";
+import { Copy, ExternalLink, Nfc, QrCode, Smartphone } from "lucide-react";
+import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MerchantRow } from "@/app/api/ui/merchants/route";
 import { usePoll } from "@/components/live";
@@ -103,6 +104,7 @@ export function MerchantsTable() {
                   <th className="px-4 py-2 text-right font-normal whitespace-nowrap">Cases</th>
                   <th className="hidden px-4 py-2 text-right font-normal whitespace-nowrap sm:table-cell">Credited</th>
                   <th className="hidden px-4 py-2 text-right font-normal whitespace-nowrap md:table-cell">Last case</th>
+                  <th className="px-4 py-2 font-normal whitespace-nowrap">Links</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -129,6 +131,12 @@ export function MerchantsTable() {
                     <td className="num px-4 py-2.5 text-right">{m.cases ? `${m.open} open / ${m.cases}` : "0"}</td>
                     <td className="num hidden px-4 py-2.5 text-right sm:table-cell">{m.credited ? inr(m.credited) : ""}</td>
                     <td className="hidden px-4 py-2.5 text-right whitespace-nowrap text-ink-3 md:table-cell">{ago(m.last_case_at)}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-col gap-1">
+                        {m.tap_url && <LinkChip icon={<Nfc className="size-3.5" aria-hidden />} label="Tap (NFC)" url={m.tap_url} />}
+                        <LinkChip icon={<QrCode className="size-3.5" aria-hidden />} label="Pay QR" url={m.pay_url} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -137,5 +145,27 @@ export function MerchantsTable() {
         )}
       </Panel>
     </div>
+  );
+}
+
+// Open or copy one of a store's signed links (the NFC tap page, the shop's pay page).
+function LinkChip({ icon, label, url }: { icon: React.ReactNode; label: string; url: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`${label} link copied`);
+    } catch {
+      toast.error("Couldn't copy; long-press the link instead");
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap text-sm">
+      <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded font-semibold text-sky-text hover:underline">
+        {icon} {label} <ExternalLink className="size-3" aria-hidden />
+      </a>
+      <button type="button" onClick={copy} aria-label={`Copy ${label} link`} className="rounded p-1 text-ink-3 hover:bg-paper-3 hover:text-ink">
+        <Copy className="size-3.5" aria-hidden />
+      </button>
+    </span>
   );
 }

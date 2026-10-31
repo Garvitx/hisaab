@@ -1,5 +1,7 @@
 import { connection } from "next/server";
 import { db } from "@/lib/db";
+import { payUrl } from "@/lib/qr-sig";
+import { tapUrl } from "@/khata/tap";
 
 async function load() {
   const [merchants, cases, credits] = await Promise.all([
@@ -24,6 +26,9 @@ async function load() {
       open,
       credited: credited.get(m.id) ?? 0,
       last_case_at: mine.reduce<Date | null>((a, c) => (!a || c.opened_at > a ? c.opened_at : a), null),
+      // Signed server-side; the secrets never reach the browser. No auth on ops pages (CLAUDE.md rule 6).
+      pay_url: payUrl(m.id),
+      tap_url: process.env.TAP_SECRET ? tapUrl(m.id) : null,
     };
   });
 }
