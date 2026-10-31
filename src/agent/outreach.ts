@@ -104,8 +104,9 @@ export async function requestApproval(action_id: string) {
     const ref = a.case_id.slice(-6);
     sent = (await sendButtons(ops, `${text}\n\nCase ${ref}: tap below, or reply APPROVE ${ref} / REJECT ${ref}.`, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }])).ok;
     if (!sent && templatesOn()) {
-      // hisaab_approval: "... Case {{case_ref}}. Tap Approve or Reject below." + quick replies (typed APPROVE <ref> also works).
-      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), { business: m.business_name, mid: m.id, issue: a.finding?.title ?? a.case.summary, amount: `Rs ${(a.amount ?? 0).toLocaleString("en-IN")}`, case_ref: a.case_id.slice(-6) }, [`approve:${a.id}`, `reject:${a.id}`])).ok;
+      // hisaab_approval (as approved in Chakra): "Approval needed for {{business}} ({{mid}}): {{issue}}, amount {{amount}}.
+      // Reply APPROVE or REJECT below." No case variable: a bare APPROVE / REJECT acts on the latest pending approval.
+      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), { business: m.business_name, mid: m.id, issue: a.finding?.title ?? a.case.summary, amount: `Rs ${(a.amount ?? 0).toLocaleString("en-IN")}` }, [`approve:${a.id}`, `reject:${a.id}`])).ok;
     }
   }
   await trace({ kind: "MESSAGE", name: "approval.requested", case_id: a.case_id, payload: { action_id: a.id, text, sent } });

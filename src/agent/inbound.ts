@@ -124,14 +124,16 @@ export async function handleInbound({ msg }: Inbound) {
 // (the case reference from the approval message; templates without buttons rely on this).
 async function ops(from: string, p: ReturnType<typeof parseInbound>) {
   const m = p.kind === "button" ? /^(approve|reject):(.+)$/.exec(p.id) : null;
-  const typed = p.kind === "text" ? /^\s*(approve|reject)\s+([a-z0-9]{4,})\s*$/i.exec(p.text) : null;
+  const typed = p.kind === "text" ? /^\s*(approve|reject)(?:\s+([a-z0-9]{4,}))?\s*[.!]*\s*$/i.exec(p.text) : null;
   let verb: string, id: string;
   if (m) [, verb, id] = m;
   else if (typed) {
     verb = typed[1].toLowerCase();
-    // The reference is the case id's tail; act on its oldest pending approval.
-    const pending = await db.action.findFirst({ where: { status: "PENDING", tier: "APPROVAL", case_id: { endsWith: typed[2].toLowerCase() } }, orderBy: { created_at: "asc" } });
-    if (!pending) return void (await sendText(from, `No open approval for case ${typed[2]}. It may already be decided or the demo was reset.`));
+    // "APPROVE a1b2c3" names the case (its id's tail); a bare "APPROVE" means the latest request sent.
+    const pending = typed[2]
+      ? await db.action.findFirst({ where: { status: "PENDING", tier: "APPROVAL", case_id: { endsWith: typed[2].toLowerCase() } }, orderBy: { created_at: "asc" } })
+      : await db.action.findFirst({ where: { status: "PENDING", tier: "APPROVAL" }, orderBy: { created_at: "desc" } });
+    if (!pending) return void (await sendText(from, typed[2] ? `No open approval for case ${typed[2]}. It may already be decided or the demo was reset.` : "No approval is waiting right now."));
     id = pending.id;
   } else return void (await sendText(from, "Hisaab ops: approval requests arrive here. Tap Approve / Reject, or reply APPROVE <case> / REJECT <case>."));
   // Stale buttons are normal: a reset wipes actions, and the dashboard may have decided it first.
