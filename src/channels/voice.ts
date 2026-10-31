@@ -9,7 +9,6 @@ export type Lang = "hi" | "hinglish" | "en";
 
 const SARVAM = "https://api.sarvam.ai";
 const TIMEOUT = 20_000;
-const SPEAKER = "priya";
 
 function key(kind: "STT" | "TTS") {
   const provider = process.env[`${kind}_PROVIDER`];
@@ -49,7 +48,8 @@ export async function ttsMp3(text: string, lang: Lang): Promise<Buffer> {
       text: speakable(text, lang).slice(0, 2500),
       language_code: lang === "en" ? "en-IN" : "hi-IN",
       model: "bulbul:v3",
-      speaker: SPEAKER,
+      // Sarvam's default bulbul:v3 voice is the one the user picked; TTS_SPEAKER overrides it.
+      ...(process.env.TTS_SPEAKER ? { speaker: process.env.TTS_SPEAKER } : {}),
       output_audio_codec: "mp3",
       speech_sample_rate: 24000,
     }),
