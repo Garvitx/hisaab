@@ -1,27 +1,29 @@
-import { ShieldAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
+import "./pay.css";
 
-// The permanent banner sits in the shell, so every pay screen (locked, flow, success) carries it.
+// The warning strip lives in the shell, so every pay screen (invalid QR, amount, PIN, success) carries it.
 export function PayShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="w-full flex-1 bg-paper-2">
-      <div className="mx-auto w-full max-w-[420px] px-4 pb-10 pt-3">
-        <p role="note" className="mb-3 flex items-start gap-2 rounded-xl bg-warn-wash px-3 py-2.5 text-sm leading-snug text-warn">
-          <ShieldAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-          <span>
-            <strong className="font-semibold">Demo only.</strong> No real money. Never enter your real UPI PIN.
-          </span>
+    <main className={`pay-app flex w-full flex-1 flex-col`}>
+      <div role="alert" className="pay-strip">
+        <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
+        <p>
+          <strong>DEMO ONLY.</strong> No real money moves. Never enter your real UPI PIN here.
+          <span className="pay-strip-hi" lang="hi-Latn">Yeh sirf demo hai, asli UPI PIN kabhi mat daaliye.</span>
         </p>
-        {children}
       </div>
+      <div className="mx-auto flex w-full max-w-[430px] flex-1 flex-col">{children}</div>
     </main>
   );
 }
 
 export function PayNotice({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <section className="rounded-[var(--radius-card)] bg-paper px-5 py-6 shadow-[var(--shadow-card)]">
-      <h1 className="text-2xl text-ink">{title}</h1>
-      {children && <p className="mt-2 text-ink-2">{children}</p>}
+    <section className="px-4 pt-10">
+      <div className="rounded-[var(--radius-card)] bg-paper px-5 py-8 text-center shadow-[var(--shadow-card)]">
+        <h1 className="text-2xl text-ink">{title}</h1>
+        {children && <p className="mt-2 text-ink-2">{children}</p>}
+      </div>
     </section>
   );
 }

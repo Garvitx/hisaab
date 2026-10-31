@@ -1,0 +1,248 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: brand (navy #002E6E, sky #00BAF2) · signature: the PIN pad · states: invalid QR, amount, in flight, wrong PIN, success · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: the amount screen is tall at 360px; the dock stays sticky so Pay is always reachable
+ * waive 9 (capitals on "ENTER 4-DIGIT UPI PIN"): the brief copies the real UPI PIN screen, where that line is set in capitals
+ * waive loud colour on .pay-strip: the demo warning is alarm red so it reads as a warning, not brand chrome; it outranks the navy on purpose */
+
+.pay-app { background: var(--color-paper); }
+
+.pay-strip {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 16px;
+  background: var(--color-bad);
+  color: var(--color-paper);
+  border-bottom: 4px solid var(--color-warn-wash);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.pay-strip strong { font-weight: 800; }
+.pay-strip-hi { display: block; margin-top: 2px; font-weight: 500; font-size: 0.875rem; }
+
+.pay-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--color-navy-ink);
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+.pay-icon-btn:hover:not(:disabled) { background: var(--color-navy-2); }
+
+.pay-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-sky-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.0625rem;
+}
+
+/* Amount screen */
+@keyframes pay-blink { 50% { opacity: 0; } }
+.pay-caret {
+  align-self: center;
+  width: 3px;
+  height: 48px;
+  margin-left: 4px;
+  border-radius: 2px;
+  background: var(--color-sky);
+  animation: pay-blink 1s steps(1) infinite;
+}
+
+.pay-chip {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  background: var(--color-paper);
+  transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
+}
+.pay-chip:hover { border-color: var(--color-sky); }
+.pay-chip[aria-pressed="true"] { background: var(--color-sky-wash); border-color: var(--color-sky); color: var(--color-sky-ink); }
+
+.pay-input {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--color-rule);
+  border-radius: 12px;
+  font-size: 1.0625rem; /* 16px+ so iOS does not zoom on focus */
+  color: var(--color-ink);
+  background: var(--color-paper);
+  transition: border-color var(--dur-micro) var(--ease-out);
+}
+.pay-input::placeholder { color: var(--color-ink-3); }
+.pay-input:hover { border-color: var(--color-ink-3); }
+
+.pay-note-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--color-paper-3);
+  color: var(--color-ink-3);
+  font-size: 0.875rem;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+.pay-note-pill:hover { background: var(--color-rule); color: var(--color-ink-2); }
+
+.pay-dock {
+  position: sticky;
+  bottom: 0;
+  background: var(--color-paper-3);
+  border-top: 1px solid var(--color-rule);
+}
+.pay-bank {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--color-paper);
+  color: var(--color-navy);
+}
+
+/* Keypad: white keys on the light grey sheet */
+.pay-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 8px 16px;
+  background: var(--color-paper-3);
+}
+.pay-key {
+  min-height: 52px;
+  border-radius: 10px;
+  background: var(--color-paper);
+  box-shadow: 0 1px 0 var(--color-rule);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  transition: background-color var(--dur-micro) var(--ease-out);
+  touch-action: manipulation;
+}
+.pay-key:hover:not(:disabled) { background: var(--color-paper-2); }
+.pay-key:active:not(:disabled) { background: var(--color-sky-wash); }
+.pay-key:disabled { color: var(--color-ink-3); }
+.pay-key-ok { background: var(--color-navy); color: var(--color-navy-ink); }
+.pay-key-ok:hover:not(:disabled) { background: var(--color-navy-2); }
+.pay-key-ok:disabled { background: var(--color-paper-3); color: var(--color-ink-3); }
+
+.pay-btn {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  border-radius: 12px;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  transition: background-color var(--dur-micro) var(--ease-out), opacity var(--dur-micro) var(--ease-out);
+  touch-action: manipulation;
+}
+.pay-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pay-primary { background: var(--color-sky); color: var(--color-sky-ink); }
+.pay-primary:hover:not(:disabled) { background: var(--color-navy); color: var(--color-navy-ink); }
+.pay-ghost { background: var(--color-paper); color: var(--color-navy); border: 1px solid var(--color-rule); }
+.pay-ghost:hover:not(:disabled) { background: var(--color-paper-3); }
+
+.pay-key:focus-visible, .pay-btn:focus-visible, .pay-chip:focus-visible, .pay-input:focus-visible, .pay-note-pill:focus-visible, .pay-icon-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* PIN screen */
+.pay-pin-title {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.pay-slot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-bottom: 3px solid var(--color-ink-3);
+}
+.pay-slot-bad { border-bottom-color: var(--color-bad); }
+.pay-slot-dot { width: 14px; height: 14px; border-radius: 999px; background: var(--color-navy); }
+.pay-pin-notice {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-warn);
+  border-radius: 12px;
+  background: var(--color-warn-wash);
+  color: var(--color-warn);
+  font-size: 0.9375rem;
+  text-align: left;
+}
+
+@keyframes pay-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+.pay-shake { animation: pay-shake 360ms var(--ease-out) both; }
+
+/* Success */
+.pay-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 20px 56px;
+  background: var(--color-good);
+  color: var(--color-paper);
+  text-align: center;
+}
+.pay-tick { width: 88px; height: 88px; }
+.pay-tick-circle { fill: var(--color-paper); transform-origin: center; animation: pay-pop var(--dur-short) var(--ease-out) both; }
+.pay-tick-path {
+  fill: none;
+  stroke: var(--color-good);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: pay-draw 320ms var(--ease-out) 180ms forwards;
+}
+@keyframes pay-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes pay-draw { to { stroke-dashoffset: 0; } }
+
+.pay-details {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px 16px;
+  padding: 20px;
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-card);
+  font-size: 0.9375rem;
+}
+.pay-details dt { color: var(--color-ink-3); }
+.pay-details dd { color: var(--color-ink); text-align: right; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-shake, .pay-tick-circle, .pay-caret { animation: none; }
+  .pay-tick-path { animation: none; stroke-dashoffset: 0; }
+}
