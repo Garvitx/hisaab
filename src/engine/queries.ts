@@ -204,3 +204,36 @@ export async function dailySummary(merchant_id: string, day = istDay()) {
     next_settlement: await forecastSettlement(merchant_id, addDays(day, 1)),
   };
 }
+
+// Loan pre-check from the last 30 days of collections. Indicative only: lending is always a human's
+// call (CLAUDE.md section 8), so the caller hands every request to a lending agent with this summary.
+export const LOAN = { notYetBelow: 5_000, priorityFrom: 15_000, minActiveDays: 20, priorityActiveDays: 25, limitX: 15, cap: 500_000, emiPct: 0.1, topUpAfter: 0.5 };
+
+export async function loanEligibility(merchant_id: string) {
+  const from = new Date(Date.now() - 30 * DAY);
+  const pays = await db.payment.findMany({ where: { merchant_id, status: "SUCCESS", created_at: { gte: from } }, select: { amount: true, created_at: true } });
+  const avg_daily = Math.round(sum(pays) / 30);
+  const active_days = new Set(pays.map((p) => istDay(p.created_at))).size;
+  const tier =
+    avg_daily < LOAN.notYetBelow || active_days < LOAN.minActiveDays ? "NOT_YET"
+    : avg_daily >= LOAN.priorityFrom && active_days >= LOAN.priorityActiveDays ? "PRIORITY"
+    : "ELIGIBLE";
+  const active = (await lending.loans(merchant_id)).filter((l) => l.status === "ACTIVE");
+  const repaid = active.length ? Math.min(...active.map((l) => 1 - l.outstanding / l.principal)) : 1;
+  const top_up_blocked = active.length > 0 && repaid < LOAN.topUpAfter;
+  const limit = tier === "NOT_YET" ? 0 : Math.min(LOAN.cap, Math.floor((LOAN.limitX * avg_daily) / 5_000) * 5_000);
+  const emi = Math.round(avg_daily * LOAN.emiPct);
+  const days = limit && emi ? Math.ceil(limit / emi) : null;
+  return {
+    tier,
+    avg_daily_collections: avg_daily,
+    active_days_of_30: active_days,
+    indicative_limit: limit,
+    daily_emi_on_an_average_day: limit ? emi : null,
+    emi_rule: "10% of each day's settlement: smaller on slow days, faster payoff on busy days",
+    payoff_in_days_at_average: days,
+    payoff_by: days ? addDays(istDay(), days) : null,
+    existing_loan: active.length ? { outstanding: active.reduce((a, l) => a + l.outstanding, 0), repaid_pct: Math.round(repaid * 100), top_up_blocked } : null,
+    needs_for_eligibility: tier === "NOT_YET" ? `average ₹${LOAN.notYetBelow.toLocaleString("en-IN")}/day and payments on ${LOAN.minActiveDays}+ of 30 days` : null,
+  };
+}
