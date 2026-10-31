@@ -40,6 +40,7 @@ export async function converse(o: {
   conversation_id: string;
   text: string;
   voice?: boolean;
+  spoken?: string; // STT language code for voice notes, e.g. "en-IN"
   image?: { base64: string; mime: string; url: string } | null;
 }) {
   const past = await db.message.findMany({
@@ -60,7 +61,7 @@ export async function converse(o: {
   if (history[0]?.role === "assistant") history.unshift({ role: "user", content: "(conversation resumed)" });
 
   // Volatile facts go in the user turn, after the cached system prompt and tools.
-  const context = `[Merchant: ${o.merchant.owner_name}, ${o.merchant.business_name}, ${o.merchant.city}. Language: ${o.merchant.language}. Today (IST): ${istDay()}.${o.voice ? " This message was a voice note; your reply will be spoken." : ""}]`;
+  const context = `[Merchant: ${o.merchant.owner_name}, ${o.merchant.business_name}, ${o.merchant.city}. Profile language: ${o.merchant.language}. Today (IST): ${istDay()}.${o.voice ? ` This message was a voice note (spoken language: ${o.spoken ?? "unknown"}); your reply will be spoken.` : ""}]`;
   const content: Anthropic.ContentBlockParam[] = [];
   if (o.image) content.push({ type: "image", source: { type: "base64", media_type: o.image.mime as "image/jpeg", data: o.image.base64 } });
   content.push({ type: "text", text: `${context}\n${o.text || (o.image ? "(photo)" : "")}` });

@@ -25,6 +25,7 @@ export async function handleInbound({ msg }: Inbound) {
   const conv = await conversationFor(merchant.id, "WA");
   let text = "";
   let voice = false;
+  let spoken: string | undefined;
   let image: { base64: string; mime: string; url: string } | null = null;
 
   if (p.kind === "text") text = p.text;
@@ -34,6 +35,7 @@ export async function handleInbound({ msg }: Inbound) {
     const [heard, url] = await Promise.all([stt(media.buf, media.mime), uploadPublicMedia(media.buf, media.mime, `${msg.id}.ogg`).catch(() => null)]);
     text = heard.text;
     voice = true;
+    spoken = heard.language;
     await logMessage({ conversation_id: conv.id, direction: "IN", type: "VOICE", transcript: text, media_url: url, wamid: msg.id });
     await trace({ kind: "TOOL_RESULT", name: "stt", conversation_id: conv.id, payload: { transcript: text, language: heard.language } });
   } else if (p.kind === "image") {
@@ -48,11 +50,11 @@ export async function handleInbound({ msg }: Inbound) {
   }
   if (p.kind === "text" || p.kind === "button") await logMessage({ conversation_id: conv.id, direction: "IN", type: "TEXT", text, wamid: msg.id });
 
-  const reply = await converse({ merchant, conversation_id: conv.id, text, voice, image });
+  const reply = await converse({ merchant, conversation_id: conv.id, text, voice, spoken, image });
 
   // Voice in → voice note plus the same text (CLAUDE.md section 9). Only the demo merchant has a real phone.
   if (voice) {
-    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, lang(merchant.language)).catch((e) => ({ ok: false, error: (e as Error).message }));
+    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, spoken?.startsWith("en") ? "en" : lang(merchant.language)).catch((e) => ({ ok: false, error: (e as Error).message }));
     if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text: reply, media_url: v.link, wamid: v.wamid });
     else console.error("[wa] voice reply failed", v.error);
   }
