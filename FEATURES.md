@@ -63,6 +63,7 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | Guardrails: OTP / UPI PIN, overpayment scam, fake "Paytm KYC" calls | "OTP aaya hai, bata doon?" | ✅ |
 | Playbook flows: paid twice, wrong amount, refund steps, replacement status, dispute / complaint status, settlement not received, rent waiver | Ask naturally | ✅ (prompt) |
 | Bill photo as dispute evidence (`attach_evidence`) | Switch WhatsApp to MID-0004, send a bill photo for ₹1,850 | ✅ built, test live |
+| **Statement PDF**: every settlement of the month, each deduction explained, refunds; sent as a WhatsApp document (web chat gets a download link) | "Pichle mahine ka hisaab PDF mein bhejo" (or "October ka statement bhejo") | ✅ (verified on prod via web chat; WhatsApp document test live) |
 | Handoff to human with summary | "Kisi insaan se baat karni hai" | ✅ |
 | Proactive alerts (after detection / decisions) in the merchant's chosen language, voice + text, never cut off | Inject on Demo | ✅ |
 
@@ -90,7 +91,6 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | Backstop watcher | Every inbound WhatsApp message drains pending events. Optional external pinger: cron-job.org every 1 min → `GET APP_URL/api/watch` with header `x-watch-secret: <WATCH_SECRET>` | ✅ |
 
 ## Not built / roadmap (pitch material)
-- Statement PDF ("Pichle mahine ka hisaab PDF mein bhejo")
 - Voice verification ("aapki awaaz alag lag rahi hai"): speaker embeddings as a soft risk signal; family members enrolled; only steps up risky requests
 - Lost / stolen device, GST invoices, bank account change, KYC flows, card chargebacks on EDC
 

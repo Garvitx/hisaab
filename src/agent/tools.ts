@@ -157,7 +157,7 @@ export async function execTool(name: string, input: Record<string, any>, ctx: Ct
         await logMessage({ conversation_id: ctx.conversation_id, direction: "OUT", type: "DOCUMENT", text: pdf.filename, media_url: link, wamid: r.wamid });
       }
       await trace({ kind: "ACTION", name: "send_statement_pdf", conversation_id: ctx.conversation_id, payload: { ...pdf.summary, sent, link } });
-      return { ...pdf.summary, sent_on_whatsapp: sent, link: sent ? undefined : link, note: sent ? "The PDF was sent as a document; just say it's on its way with a one-line summary." : "Share the link." };
+      return { ...pdf.summary, sent_on_whatsapp: sent, link: sent ? undefined : link, note: sent ? "The PDF was sent as a document; just say it's on its way with a one-line summary." : "This is the web chat: give the link as 'yahan se download karein' (not an error), with a one-line summary." };
     }
 
     case "loan_check": {
