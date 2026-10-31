@@ -62,6 +62,15 @@ export async function load(mid: string): Promise<Ctx> {
 }
 
 // The latest settlement that can absorb `need` without going negative (a payout is never below zero).
+// The newest real payment across all merchants ('@demo' VPAs are pay-page tests): "now" for the market.
+export const MARKET_NOW = `(SELECT max(created_at) FROM settlement.payments WHERE status = 'SUCCESS' AND payer_vpa NOT LIKE '%@demo')`;
+
+// Each merchant's average SUCCESS payments per day in the 2 h before market-now, over the previous 7 days.
+export const BUSY_AVG = `SELECT p.merchant_id, count(*) / 7.0 avg FROM settlement.payments p, generate_series(1, 7) k, (SELECT ${MARKET_NOW} g) m
+  WHERE p.status = 'SUCCESS' AND p.created_at > m.g - k * interval '1 day' - interval '2 hours' AND p.created_at <= m.g - k * interval '1 day'
+  GROUP BY p.merchant_id`;
+export const BUSY_MIN = 6; // payments_stopped needs this many, so chance gaps don't look like a swapped QR
+
 export const latest = (c: Ctx, need = 0) =>
   c.settlements.findLast((x) => x.gross - x.deductions_total >= need) ?? c.settlements[c.settlements.length - 1];
 export function settlementOnOrAfter(c: Ctx, d: number) {
@@ -85,6 +94,7 @@ export class Plan {
   private rows = new Map<string, Row[]>();
   private after: { text: string; params: unknown[] }[] = [];
   private adj = new Map<string, { gross: number; ded: number }>();
+  readonly injection_id = randomUUID(); // known up front so rows can point at it
   constructor(public ctx: Ctx) {}
 
   insert<T extends Row>(table: string, row: T): T & { id: string } {

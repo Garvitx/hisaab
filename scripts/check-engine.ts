@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { config } from "dotenv";
 
 config({ path: ".env.local", quiet: true });
+// These scripts write to (and may reset) the one shared database the live demo runs on.
+if (process.env.ALLOW_LIVE_CHECKS !== "1") {
+  console.error("Refusing to run: this writes to the live demo database (it may reset it and message real phones). Set ALLOW_LIVE_CHECKS=1 to run anyway.");
+  process.exit(1);
+}
 
 const MID = "MID-0007"; // no loans, no disputes, no EDC
 const DAY = 86_400_000;

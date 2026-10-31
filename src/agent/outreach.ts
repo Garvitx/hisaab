@@ -81,11 +81,20 @@ export async function requestApproval(action_id: string) {
     evidence: a.finding ? `${a.finding.origin === "HUNTER" ? "Found by the AI hunter" : "Rule engine"}, ${a.finding.evidence_source === "MERCHANT_CLAIM" ? "based on the merchant's confirmation" : "verified from the ledger"}` : "",
     fix: a.type.replace(/_/g, " "),
     amount: a.amount ?? 0,
-    reason: a.finding?.evidence_source === "MERCHANT_CLAIM" ? "evidence is the merchant's word" : "amount is above the auto-fix limit",
+    reason: await approvalReason(a),
   });
   const ops = process.env.OPS_EMPLOYEE_PHONE;
   if (ops) await sendButtons(ops, text, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }]);
   await trace({ kind: "MESSAGE", name: "approval.requested", case_id: a.case_id, payload: { action_id: a.id, text, sent: !!ops } });
+}
+
+// The real policy reason, as recorded when the action was proposed (never a guess).
+async function approvalReason(a: { id: string; case_id: string; finding: { verified: boolean; evidence_source: string } | null; amount: number | null }) {
+  if (a.finding?.evidence_source === "MERCHANT_CLAIM") return "the evidence is the merchant's word";
+  if (a.finding && !a.finding.verified) return "the AI hunter's finding could not be verified from the ledger";
+  const p = await db.traceEvent.findFirst({ where: { case_id: a.case_id, kind: "POLICY", payload: { path: ["action_id"], equals: a.id } }, select: { payload: true } });
+  const pl = (p?.payload ?? {}) as { reason?: string; auto_limit?: number };
+  return pl.reason ?? (pl.auto_limit != null ? `amount is above the auto-fix limit of ₹${pl.auto_limit.toLocaleString("en-IN")}` : "policy requires a human");
 }
 
 // After approve / reject / undo, from either channel.

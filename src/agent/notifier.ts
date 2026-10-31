@@ -7,7 +7,8 @@ export const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 async function write(system: string, facts: unknown) {
   const res = await claude.messages.create({
     model: MODEL.notify(),
-    max_tokens: 1024,
+    // Devanagari costs several times the tokens of Hinglish; 1024 cut a 3-finding Hindi message mid-sentence.
+    max_tokens: 4096,
     system,
     messages: [{ role: "user", content: JSON.stringify(facts) }],
   });

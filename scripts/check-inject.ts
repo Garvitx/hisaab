@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { config } from "dotenv";
 
 config({ path: ".env.local", quiet: true });
+// These scripts write to (and may reset) the one shared database the live demo runs on.
+if (process.env.ALLOW_LIVE_CHECKS !== "1") {
+  console.error("Refusing to run: this writes to the live demo database (it may reset it and message real phones). Set ALLOW_LIVE_CHECKS=1 to run anyway.");
+  process.exit(1);
+}
 
 // SQL stand-ins for the section 6 verifiers, so decoys can be shown to trip none of them.
 const FLAGS = `SELECT
@@ -38,6 +43,7 @@ async function main() {
     ["rent_after_return", "demo"], ["ghost_device", "demo"], ["pickup_never_completed", "demo"], ["pending_payment", "demo"], ["device_offline", "demo"],
     ["silent_deduction", "random"], ["orphan_dispute", "random"], ["zombie_loan", "random"], ["duplicate_deduction", "random"],
     ["deduction_without_source", "random"], ["pending_payment", "random", { failed: true }], ["zombie_loan", "MID-0030"],
+    ["velocity_burst", "demo"], ["qr_swapped", "random"],
     ["legit_late_fee", "random"], ["merchant_refund", "random"], ["slow_day", "random"],
   ];
   const done: { type: string; injection_id: string; merchant_id: string; params: any }[] = [];
@@ -61,7 +67,8 @@ async function main() {
   assert.equal(await sumDeducted(by("ghost_device").params.charge_ids), 405);
   assert.equal(await one(`SELECT count(*) n FROM logistics.device_events WHERE device_id = $1 AND type = 'DELIVERED'`, by("ghost_device").params.device_id), 0);
   const sd = await row(`SELECT amount, status::text status, notice_sent_at FROM billing.charges WHERE id = $1`, by("silent_deduction").params.charge_id);
-  assert.deepEqual([sd.amount, sd.status, sd.notice_sent_at], [2800, "BILLED", null]);
+  // notice_sent_at isn't asserted: a dashboard heartbeat may already have let the engine warn (send_warning sets it).
+  assert.deepEqual([sd.amount, sd.status], [2800, "BILLED"]);
   assert.equal(await sumDeducted([by("orphan_dispute").params.dispute_id]), 1850);
   assert.equal((await row(`SELECT order_ref FROM settlement.payments WHERE id = $1`, by("orphan_dispute").params.payment_id)).order_ref, null);
   const dup = await rows(`SELECT settlement_id, amount FROM settlement.deductions WHERE source_ref = $1`, by("duplicate_deduction").params.charge_id);
@@ -75,6 +82,16 @@ async function main() {
   assert.ok(Math.abs(offMin - 180) < 3, `device_offline: last seen ${offMin} min ago`);
   const slow = await row(`SELECT extract(dow FROM date) dow, gross FROM settlement.settlements WHERE id = $1`, by("slow_day").params.settlement_id);
   assert.ok(Number(slow.dow) === 0 && slow.gross <= 0.3 * by("slow_day").params.avg, "slow_day: Sunday, >= 70% below avg");
+
+  const vb = await row(`SELECT count(*)::int n, count(DISTINCT payer_vpa)::int vpas, sum(amount)::int total, count(order_ref)::int orders,
+    extract(epoch FROM max(created_at) - min(created_at)) span FROM settlement.payments WHERE id = ANY($1::text[]) AND status = 'SUCCESS'`, by("velocity_burst").params.payment_ids);
+  assert.deepEqual([vb.n, vb.vpas, vb.total, vb.orders], [8, 1, 23, 8], "velocity_burst: 8 payments, one VPA, ₹23");
+  assert.ok(Number(vb.span) <= 120, "velocity_burst within 2 min");
+  const qr = by("qr_swapped"), after = qr.params.removed_after;
+  assert.equal(await one(`SELECT count(*) n FROM settlement.payments WHERE merchant_id = $1 AND created_at > $2`, qr.merchant_id, after), 0, "qr_swapped: target silent");
+  assert.ok(await one(`SELECT count(*) n FROM settlement.payments WHERE merchant_id <> $1 AND status = 'SUCCESS' AND created_at > $2`, qr.merchant_id, after), "qr_swapped: market still live");
+  assert.equal(await one(`SELECT count(*) n FROM hisaab.outbox_events WHERE row_id = $1 AND op = 'DELETE' AND merchant_id = $2`, `qr_swapped:${qr.injection_id}`, qr.merchant_id), 1, "qr_swapped outbox row");
+  assert.ok(qr.params.removed > 0 && qr.params.slot_avg >= 6, "qr_swapped: busy target actually went quiet");
 
   // Verifier stand-ins: each anomaly trips its own check, decoys trip none.
   const expect: Record<string, string> = {
@@ -91,7 +108,8 @@ async function main() {
   assert.equal(await one(`SELECT count(*) n FROM settlement.settlements WHERE net <> gross - deductions_total OR net < 0`), 0, "net = gross - deductions_total");
   assert.equal(await one(`SELECT count(*) n FROM settlement.settlements s WHERE deductions_total <> (SELECT coalesce(sum(amount), 0) FROM settlement.deductions WHERE settlement_id = s.id)`), 0, "deductions_total = sum");
   assert.equal(await one(`SELECT count(*) n FROM hisaab.injections`), plan.length);
-  for (const d of done) assert.ok(await one(`SELECT count(*) n FROM hisaab.outbox_events WHERE merchant_id = $1 AND processed_at IS NULL`, d.merchant_id), `outbox rows for ${d.merchant_id}`);
+  // Processed or not: a live dashboard heartbeat may drain them before we look.
+  for (const d of done) assert.ok(await one(`SELECT count(*) n FROM hisaab.outbox_events WHERE merchant_id = $1`, d.merchant_id), `outbox rows for ${d.merchant_id}`);
   console.log("inject ok");
 
   await new Promise((r) => setTimeout(r, 1600)); // past the watcher's debounce

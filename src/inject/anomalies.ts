@@ -2,8 +2,8 @@
 // the merchant; index.ts commits the plan plus the hisaab.injections row in one transaction.
 import { randomInt } from "node:crypto";
 import {
-  DAY, type Plan, addSoundbox, at, cleanSoundbox, courier, customerVpa, type Device, lastPeriods, latest,
-  monthStart, nextPeriod, orderRef, periodOf, rentCharges, rupees, settlementOnOrAfter, today, txnRef,
+  DAY, IST, type Plan, addSoundbox, at, cleanSoundbox, courier, customerVpa, type Device, lastPeriods, latest,
+  BUSY_AVG, BUSY_MIN, MARKET_NOW, monthStart, nextPeriod, orderRef, periodOf, rentCharges, rupees, settlementOnOrAfter, sql, today, txnRef,
 } from "./lib";
 
 export type Result = { summary: string; params: Record<string, unknown> };
@@ -130,5 +130,41 @@ export const pickup_never_completed: Injector = (p) => {
   return {
     summary: `pickup of ${device.serial} requested ${day(requested)}, never picked up; ${rents.length} rents = ${rupees(amount)} since`,
     params: { amount, device_id: device.id, event_id: e.id, subscription_id: sub.id, charge_ids: rents.map((x) => x.id) },
+  };
+};
+
+// Card testing: 8 tiny SUCCESS payments (₹23 in all) from one VPA inside ~2 minutes.
+export const velocity_burst: Injector = (p) => {
+  const vpa = `cardtest.${randomInt(1000, 10_000)}@ybl`, now = Date.now();
+  const pays = [1, 2, 5, 3, 1, 4, 2, 5].map((amount, i) =>
+    p.insert("settlement.payments", {
+      merchant_id: p.ctx.mid, txn_ref: txnRef(), amount, payer_vpa: vpa, payer_name: null, order_ref: orderRef(),
+      status: "SUCCESS", created_at: new Date(now - 120_000 + Math.round((i * 115_000) / 7)),
+    }),
+  );
+  const amount = pays.reduce((a, x) => a + x.amount, 0);
+  return { summary: `${pays.length} payments of ₹1–5 (${rupees(amount)}) from ${vpa} in 2 min`, params: { amount, payer_vpa: vpa, payment_ids: pays.map((x) => x.id) } };
+};
+
+// The QR standee was swapped: this shop's payments stop for the last 150 minutes while the
+// market keeps going. Deletes fire no trigger, so the outbox row is written by hand.
+export const qr_swapped: Injector = async (p) => {
+  const c = p.ctx;
+  const [{ g, n, avg: avg0 }] = (await sql().query(
+    `SELECT ${MARKET_NOW}::text g, (SELECT count(*)::int FROM settlement.payments WHERE merchant_id = $1 AND created_at > ${MARKET_NOW} - interval '150 minutes') n,
+       (SELECT avg::float FROM (${BUSY_AVG}) b WHERE merchant_id = $1) avg`,
+    [c.mid],
+  )) as { g: string; n: number; avg: number | null }[];
+  const avg = Math.round((avg0 ?? 0) * 10) / 10;
+  const from = Date.parse(`${g.replace(" ", "T")}Z`) - 150 * 60_000;
+  // Settlement D pays out day D-1, and there is none for today yet, so nothing in the window is settled.
+  if (Math.floor((from + IST) / DAY) * DAY < latest(c).day) throw new Error(`qr_swapped: window on ${c.mid} reaches into a settled day`);
+  p.raw(`DELETE FROM settlement.payments WHERE merchant_id = $1 AND created_at > $2`, [c.mid, new Date(from).toISOString()]);
+  p.raw(`INSERT INTO hisaab.outbox_events ("schema", "table", row_id, op, merchant_id) VALUES ('settlement', 'payments', $1, 'DELETE', $2)`, [`qr_swapped:${p.injection_id}`, c.mid]);
+  // An explicit target is injected even when quiet, but flagged: the rule may rightly stay silent.
+  const quiet = avg < BUSY_MIN ? ` (only ${avg} payments/day in this slot, under ${BUSY_MIN}: payments_stopped may not fire)` : "";
+  return {
+    summary: `${n} payments since ${new Date(from + IST).toISOString().slice(11, 16)} IST removed; market still live${quiet}`,
+    params: { market_now: g, removed_after: new Date(from), removed: n, slot_avg: avg },
   };
 };

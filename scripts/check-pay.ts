@@ -5,6 +5,11 @@ import { createRequire } from "node:module";
 import { renderToStaticMarkup } from "react-dom/server";
 
 config({ path: ".env.local", quiet: true });
+// These scripts write to (and may reset) the one shared database the live demo runs on.
+if (process.env.ALLOW_LIVE_CHECKS !== "1") {
+  console.error("Refusing to run: this writes to the live demo database (it may reset it and message real phones). Set ALLOW_LIVE_CHECKS=1 to run anyway.");
+  process.exit(1);
+}
 
 async function main() {
   // Dynamic imports: db.ts reads DATABASE_URL at load, which must happen after dotenv.

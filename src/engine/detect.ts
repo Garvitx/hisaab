@@ -67,6 +67,15 @@ export async function detectMerchant(
       : { origin: "HUNTER", check: h.check, title: h.title, amount: 0, refs: (h.refs ?? {}) as Refs, verified: false, verdict: r.verdict });
   }
 
+  // The hunter often re-finds what a rule already caught, pointing at it differently (device vs
+  // subscription), so the refs-based dedupe below misses it and the same rupees get proposed twice.
+  // A hunter finding whose check a rule already reported (this pass or in the last day) is dropped.
+  const ruleChecks = new Set([
+    ...found.filter((f) => f.origin === "RULE").map((f) => f.check),
+    ...(await db.finding.findMany({ where: { origin: "RULE", verified: true, case: { merchant_id, opened_at: { gte: new Date(Date.now() - DAY) } } }, select: { check: true } })).map((f) => f.check),
+  ]);
+  for (let i = found.length - 1; i >= 0; i--) if (found[i].origin === "HUNTER" && ruleChecks.has(found[i].check)) found.splice(i, 1);
+
   const seen = new Set((await db.finding.findMany({ where: { case: { merchant_id } }, select: { check: true, evidence_refs: true } })).map((f) => key(f.check, f.evidence_refs)));
   const fresh = found.filter((f) => {
     const k = key(f.check, f.refs);

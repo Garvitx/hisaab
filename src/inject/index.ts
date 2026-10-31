@@ -1,6 +1,6 @@
 // Shared by the CLI (scripts/inject.ts), the panel (POST /api/inject) and the demo script.
 import { randomInt } from "node:crypto";
-import { Plan, load, sql } from "./lib";
+import { BUSY_AVG, BUSY_MIN, Plan, load, sql } from "./lib";
 import type { Injector } from "./anomalies";
 import * as A from "./anomalies";
 import * as D from "./decoys";
@@ -18,6 +18,8 @@ export const ANOMALIES: Record<string, Entry> = {
   device_offline: { run: A.device_offline, label: "Soundbox offline" },
   pending_payment: { run: A.pending_payment, label: "Pending payment", amount: 500, options: ["failed"] },
   pickup_never_completed: { run: A.pickup_never_completed, label: "Pickup never completed", amount: 270 },
+  velocity_burst: { run: A.velocity_burst, label: "Card-testing burst", amount: 23 },
+  qr_swapped: { run: A.qr_swapped, label: "QR swapped, payments stopped" },
 };
 
 export const DECOYS: Record<string, Entry> = {
@@ -47,6 +49,11 @@ async function resolveTarget(type: string, target: string) {
   )) as { id: string; has_loan: boolean; used: boolean }[];
   let pool = rows;
   if (type === "zombie_loan" && pool.some((m) => m.has_loan)) pool = pool.filter((m) => m.has_loan);
+  if (type === "qr_swapped") {
+    const busy = new Set(((await sql().query(`SELECT merchant_id FROM (${BUSY_AVG}) b WHERE avg >= $1`, [BUSY_MIN])) as { merchant_id: string }[]).map((r) => r.merchant_id));
+    pool = pool.filter((m) => busy.has(m.id));
+    if (!pool.length) throw new Error(`qr_swapped: no merchant averages ${BUSY_MIN}+ payments at this hour`);
+  }
   if (pool.some((m) => !m.used)) pool = pool.filter((m) => !m.used);
   return pool[randomInt(pool.length)].id;
 }
@@ -57,7 +64,7 @@ export async function inject(type: string, target: string, opts: { decoy?: boole
   const merchant_id = await resolveTarget(type, target);
   const plan = new Plan(await load(merchant_id));
   const { summary, params } = await entry.run(plan, { failed: opts.failed });
-  const row = plan.insert("hisaab.injections", { type, merchant_id, is_decoy: type in DECOYS, params });
+  const row = plan.insert("hisaab.injections", { id: plan.injection_id, type, merchant_id, is_decoy: type in DECOYS, params });
   // One transaction: the watcher must never see half an injection.
   await plan.commit();
   return { injection_id: row.id, merchant_id, summary };

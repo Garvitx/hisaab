@@ -99,12 +99,19 @@ async function ops(from: string, p: ReturnType<typeof parseInbound>) {
   const m = p.kind === "button" ? /^(approve|reject):(.+)$/.exec(p.id) : null;
   if (!m) return void (await sendText(from, "Hisaab ops: approval requests will arrive here with Approve / Reject buttons."));
   const [, verb, id] = m;
+  // Stale buttons are normal: a reset wipes actions, and the dashboard may have decided it first.
+  const action = await db.action.findUnique({ where: { id } });
+  if (!action) return void (await sendText(from, "This request is no longer open (the demo was reset or it was removed). Nothing was changed."));
+  if (action.status !== "PENDING")
+    return void (await sendText(from, `Already decided: ${action.type.replace(/_/g, " ")} is ${action.status.toLowerCase()}${action.decided_via ? ` (via ${action.decided_via.toLowerCase()})` : ""}. Nothing was changed.`));
   try {
     const d = { decided_by: "ops-whatsapp", via: "WHATSAPP" as const };
     const a = verb === "approve" ? await approveAction(id, d) : await rejectAction(id, d);
     await sendText(from, `${verb === "approve" ? "Approved" : "Rejected"}: ${a.type.replace(/_/g, " ")}${a.amount ? ` ₹${a.amount.toLocaleString("en-IN")}` : ""}. The merchant is being informed.`);
     await notifyDecision(a.id);
   } catch (e) {
-    await sendText(from, `Could not ${verb}: ${(e as Error).message}`);
+    // Never show raw errors on WhatsApp; the detail goes to the logs.
+    console.error("[wa] ops decision failed", id, (e as Error)?.message || e);
+    await sendText(from, `Could not ${verb} this one right now. Please use the ops dashboard.`);
   }
 }
