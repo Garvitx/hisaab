@@ -286,7 +286,7 @@ Apply these in order:
 - **24-hour window:** the demo merchant and the ops phone both message the agent number at the start of the day. Proactive messages outside the window use templates.
 - **Templates** (submit tonight):
   - `hisaab_alert` (utility): "Namaste {{name}}, aapke Paytm Business account mein {{topic}} ka ek update hai: {{details}}. Poori jaankari ke liye is message ka jawab dein."
-  - `hisaab_approval` (utility, quick-reply buttons Approve and Reject): "Approval needed for {{business}} ({{mid}}): {{issue}}, amount {{amount}}. Case {{case_ref}}."
+  - `hisaab_approval` (utility, no buttons: Chakra's editor has none): "Approval needed for {{business}} ({{mid}}): {{issue}}, amount {{amount}}. Case {{case_ref}}. Reply APPROVE {{case_ref}} or REJECT {{case_ref}}."
   - Chakra requires NAMED variables (lowercase, underscores); the code sends `parameter_name` for each.
 
 ---

@@ -101,10 +101,11 @@ export async function requestApproval(action_id: string) {
   const ops = process.env.OPS_EMPLOYEE_PHONE;
   let sent = false;
   if (ops) {
-    sent = (await sendButtons(ops, text, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }])).ok;
+    const ref = a.case_id.slice(-6);
+    sent = (await sendButtons(ops, `${text}\n\nCase ${ref}: tap below, or reply APPROVE ${ref} / REJECT ${ref}.`, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }])).ok;
     if (!sent && templatesOn()) {
-      // hisaab_approval: "Approval needed for {{business}} ({{mid}}): {{issue}}, amount {{amount}}. Case {{case_ref}}." + Approve / Reject.
-      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), { business: m.business_name, mid: m.id, issue: a.finding?.title ?? a.case.summary, amount: `Rs ${(a.amount ?? 0).toLocaleString("en-IN")}`, case_ref: a.case_id.slice(-6) }, [`approve:${a.id}`, `reject:${a.id}`])).ok;
+      // hisaab_approval (no buttons in Chakra): "... Case {{case_ref}}. Reply APPROVE {{case_ref}} or REJECT {{case_ref}}."
+      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), { business: m.business_name, mid: m.id, issue: a.finding?.title ?? a.case.summary, amount: `Rs ${(a.amount ?? 0).toLocaleString("en-IN")}`, case_ref: a.case_id.slice(-6) })).ok;
     }
   }
   await trace({ kind: "MESSAGE", name: "approval.requested", case_id: a.case_id, payload: { action_id: a.id, text, sent } });
