@@ -1,4 +1,4 @@
-// Run: node scripts/check-whatsapp.ts
+// Run: pnpm tsx scripts/check-whatsapp.ts
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { signatureOk, requestOk, messagesIn, samePhone } from "../src/channels/whatsapp.ts";
