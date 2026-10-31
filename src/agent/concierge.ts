@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import type { Channel, Merchant, MessageType } from "@/generated/prisma/client";
-import { MODEL, runTools } from "./llm";
+import { MODEL, claude, runTools, textOf } from "./llm";
 import { CONCIERGE_SYSTEM } from "./prompts";
 import { TOOLS, execTool } from "./tools";
 import { trace } from "./trace";
@@ -108,7 +108,21 @@ export async function converse(o: {
     exec: (name, input) => execTool(name, input, { merchant_id: o.merchant.id, conversation_id: o.conversation_id, image: o.image ? { url: o.image.url } : null }),
     ids: { conversation_id: o.conversation_id },
   });
-  const reply = plain(r.text) || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
+  let reply = plain(r.text) || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
+  // A long chat history can pull the model back into its usual script. The chosen language is a
+  // promise to the merchant, so a wrong-script reply is rewritten once (facts unchanged).
+  const wantDeva = o.language === "hi";
+  const hasDeva = /[\u0900-\u097F]/.test(reply);
+  if (o.language && r.text && (wantDeva !== hasDeva || (o.language === "en" && HINGLISH.test(reply)))) {
+    const fix = await claude.messages.create({
+      model: MODEL.converse(),
+      max_tokens: 2048,
+      system: "Rewrite the message in the requested language and script. Keep every fact, number, ₹ amount, date and time exactly as written. Plain text, no markdown. Output only the rewritten message.",
+      messages: [{ role: "user", content: `Language: ${LANGS[o.language]}\n\nMessage:\n${reply}` }],
+    });
+    reply = plain(textOf(fix)) || reply;
+    await trace({ kind: "THINK", name: "language.rewrite", conversation_id: o.conversation_id, payload: { to: o.language } });
+  }
   await trace({ kind: "MESSAGE", name: "concierge.reply", conversation_id: o.conversation_id, payload: { text: reply, stop: r.stop } });
   return reply;
 }
