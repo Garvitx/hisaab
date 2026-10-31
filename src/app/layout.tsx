@@ -22,7 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SiteHeader />
         </Suspense>
         {children}
-        <Toaster theme="light" position="bottom-right" richColors={false} />
+        <Toaster theme="light" position="bottom-right" richColors={false} visibleToasts={3} />
       </body>
     </html>
   );

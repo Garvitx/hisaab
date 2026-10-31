@@ -124,10 +124,14 @@ export function chime() {
   });
 }
 
-// Soundbox-style announcement from the voice agent's TTS route.
-// Audio is cached per text (so per amount), plays one at a time, and falls back to the chime if TTS fails.
+// Soundbox-style announcements from the voice agent's TTS route.
+// Audio is cached per text (so per amount) and plays one line at a time; TTS failure falls back to the chime.
+// Crowd mode: once 3+ payments are waiting, they collapse into one "N payment, kul ₹X" line.
 const clips = new Map<string, Promise<string>>();
-let queue: Promise<void> = Promise.resolve();
+type Line = { pay: number } | { text: string };
+const pending: Line[] = [];
+let playing = false;
+const inrFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
 function clip(text: string) {
   let p = clips.get(text);
@@ -142,19 +146,50 @@ function clip(text: string) {
   return p;
 }
 
+async function speak(text: string) {
+  try {
+    const a = new Audio(await clip(text));
+    await a.play();
+    await new Promise<void>((done) => {
+      a.onended = () => done();
+      a.onerror = () => done();
+      setTimeout(done, 8000);
+    });
+  } catch {
+    chime();
+  }
+}
+
+// Picks the next line; with 3+ payments waiting, all of them become one summary line.
+export function nextLine(q: Line[]): string | null {
+  const pays = q.filter((l): l is { pay: number } => "pay" in l);
+  if (pays.length >= 3) {
+    const total = pays.reduce((a, l) => a + l.pay, 0);
+    for (let i = q.length - 1; i >= 0; i--) if ("pay" in q[i]) q.splice(i, 1);
+    return `Paytm par ${pays.length} payment, kul ₹${inrFmt.format(total)} prapt hue`;
+  }
+  const l = q.shift();
+  return !l ? null : "pay" in l ? `Paytm par ₹${inrFmt.format(l.pay)} prapt hue` : l.text;
+}
+
+async function drain() {
+  if (playing) return;
+  playing = true;
+  try {
+    for (let t = nextLine(pending); t; t = nextLine(pending)) await speak(t);
+  } finally {
+    playing = false;
+  }
+}
+
+export function announcePayments(amounts: number[]) {
+  if (!readSound() || !amounts.length) return;
+  pending.push(...amounts.map((pay) => ({ pay })));
+  void drain();
+}
+
 export function announce(text: string) {
   if (!readSound()) return;
-  queue = queue.then(async () => {
-    try {
-      const a = new Audio(await clip(text));
-      await a.play();
-      await new Promise<void>((done) => {
-        a.onended = () => done();
-        a.onerror = () => done();
-        setTimeout(done, 8000);
-      });
-    } catch {
-      chime();
-    }
-  });
+  pending.push({ text });
+  void drain();
 }

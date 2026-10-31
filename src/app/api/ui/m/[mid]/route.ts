@@ -26,7 +26,7 @@ async function load(mid: string) {
     db.payment.findMany({
       where: w,
       orderBy: { created_at: "desc" },
-      take: 15,
+      take: 30,
       select: { id: true, amount: true, payer_name: true, payer_vpa: true, status: true, created_at: true },
     }),
     db.device.findMany({

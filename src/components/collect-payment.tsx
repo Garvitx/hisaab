@@ -39,8 +39,8 @@ export function CollectPayment({
               <span className="text-sm text-ink-3">Live</span>
             </div>
             {payments.length ? (
-              <ul className="divide-y divide-rule" aria-live="polite">
-                {payments.slice(0, 8).map((p) => (
+              <ul className="max-h-[32rem] divide-y divide-rule overflow-y-auto" aria-live="polite">
+                {payments.slice(0, 30).map((p) => (
                   <li key={p.id} className="row-in flex items-baseline justify-between gap-4 px-5 py-3">
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-ink">{p.payer}</span>

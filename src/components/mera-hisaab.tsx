@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mic, Pause, Play, Volume2 } from "lucide-react";
 import type { MeraHisaab as D } from "@/app/api/ui/m/[mid]/route";
-import { announce, setSound, usePoll, useSound } from "@/components/live";
+import { announce, announcePayments, setSound, usePoll, useSound } from "@/components/live";
 import { ago, day, inr, time, type Json } from "@/components/format";
 import { Empty, Failed, Panel, Skeleton } from "@/components/bits";
 import { Button } from "@/components/ui/button";
@@ -251,12 +251,16 @@ export function MeraHisaab({
     const pays = m.payments.filter((p) => !s.has(p.id)).reverse();
     const creds = m.credits.filter((c) => !s.has(c.id));
     ids.forEach((id) => s.add(id));
-    for (const p of pays) {
-      if (p.status !== "SUCCESS") continue;
-      toast.success(`${p.payer} paid ${inr(p.amount)}`);
-      announce(`Paytm par ₹${p.amount} prapt hue`);
+    const ok = pays.filter((p) => p.status === "SUCCESS");
+    // At most 3 toasts per poll: past that, two names and one "+N more" summary.
+    const named = ok.length > 3 ? ok.slice(0, 2) : ok;
+    named.forEach((p) => toast.success(`${p.payer} paid ${inr(p.amount)}`));
+    if (ok.length > 3) {
+      const rest = ok.slice(2);
+      toast.success(`+${rest.length} more payments`, { description: `${inr(rest.reduce((a, p) => a + p.amount, 0))} in total` });
     }
-    const spoke = pays.some((p) => p.status === "SUCCESS");
+    announcePayments(ok.map((p) => p.amount));
+    const spoke = ok.length > 0;
     for (const c of creds) {
       if (c.undone) continue;
       toast.success(`${inr(c.amount)} wapas aaye`, { description: c.reason });
@@ -282,7 +286,7 @@ export function MeraHisaab({
       <Panel title="Naye payments" aside={<span className="text-sm text-ink-3">Live</span>}>
         {m.payments.length ? (
           <ul className="divide-y divide-rule" aria-live="polite">
-            {m.payments.slice(0, compact ? 6 : 15).map((p) => (
+            {m.payments.slice(0, compact ? 6 : 30).map((p) => (
               <li key={p.id} className="row-in flex items-baseline justify-between gap-4 px-4 py-2.5">
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-ink">{p.payer}</span>
