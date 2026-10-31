@@ -13,8 +13,8 @@ const HEALTH = ["all", "issue", "fixed", "clean"] as const;
 
 export function MerchantsTable() {
   const { data, error } = usePoll<M[]>("/api/ui/merchants", 3000);
-  const { data: claims } = usePoll<{ shops: { id: string; state: string }[] }>("/api/claim", 5000);
-  const taken = new Set((claims?.shops ?? []).filter((s) => s.state === "TAKEN").map((s) => s.id));
+  const { data: claims } = usePoll<{ shops: { id: string; state: string; held_by?: string }[] }>("/api/claim", 5000);
+  const taken = new Map((claims?.shops ?? []).filter((s) => s.state === "TAKEN").map((s) => [s.id, s.held_by?.slice(-4) ?? ""]));
   const sp = useSearchParams();
   const router = useRouter();
   const path = usePathname();
@@ -118,7 +118,7 @@ export function MerchantsTable() {
                         {m.is_demo && <Pill t="sky" className="h-5 px-2 text-xs">Demo</Pill>}
                         {taken.has(m.id) && (
                           <Pill t="good" className="h-5 px-2 text-xs">
-                            <Smartphone className="size-3" aria-hidden /> Claimed
+                            <Smartphone className="size-3" aria-hidden /> Claimed{taken.get(m.id) && <span className="num">••{taken.get(m.id)}</span>}
                           </Pill>
                         )}
                       </div>

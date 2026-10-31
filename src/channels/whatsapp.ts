@@ -186,6 +186,9 @@ export async function uploadPublicMedia(buf: Buffer, mime: string, filename: str
 
 export const sendAudio = (to: string, link: string) => send({ to: digits(to), type: "audio", audio: { link } });
 
+export const sendImage = (to: string, link: string, caption?: string) =>
+  send({ to: digits(to), type: "image", image: { link, ...(caption ? { caption } : {}) } });
+
 export const sendDocument = (to: string, link: string, filename: string, caption?: string) =>
   send({ to: digits(to), type: "document", document: { link, filename, ...(caption ? { caption } : {}) } });
 

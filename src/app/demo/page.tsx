@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { OpsOverview } from "@/components/ops-overview";
 import { MeraHisaab } from "@/components/mera-hisaab";
 import { MerchantQR } from "@/components/merchant-qr";
+import { JoinQR } from "@/components/join-qr";
 import { Panel, Skeleton } from "@/components/bits";
 
 export const metadata: Metadata = { title: "Hisaab live demo", description: "Merchant view and ops view side by side, scoreboard on top." };
@@ -25,6 +26,9 @@ export default function Page({ searchParams }: PageProps<"/demo">) {
           </Suspense>
         }
       />
+      <div className="mt-4">
+        <JoinQR />
+      </div>
     </main>
   );
 }

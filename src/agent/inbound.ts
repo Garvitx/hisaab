@@ -4,7 +4,8 @@ import { stt } from "@/channels/voice";
 import { approveAction, rejectAction } from "@/engine/actions";
 import * as merchants from "@/systems/merchants";
 import { activeDemoMid } from "@/lib/demo";
-import { activate, boundMerchant } from "@/lib/claims";
+import { activate, boundMerchant, join } from "@/lib/claims";
+import { welcome } from "./join";
 import { converse, conversationFor, logMessage, ttsLang } from "./concierge";
 import { db } from "@/lib/db";
 import { notifyDecision } from "./outreach";
@@ -25,7 +26,7 @@ async function askLanguage(to: string, owner: string, conversation_id: string) {
   await logMessage({ conversation_id, direction: "OUT", type: "BUTTONS", text: body, wamid: r.wamid });
 }
 
-export async function handleInbound({ msg }: Inbound) {
+export async function handleInbound({ msg, contactName }: Inbound) {
   if (typeof msg?.from !== "string" || !msg.from) return;
   if (samePhone(msg.from, process.env.OPS_EMPLOYEE_PHONE)) return ops(msg.from, parseInbound(msg));
 
@@ -47,6 +48,22 @@ export async function handleInbound({ msg }: Inbound) {
     return askLanguage(msg.from, m.owner_name.split(" ")[0], c.id);
   }
 
+  // "JOIN HISAAB" from the /join page: a random free shop, ACTIVE at once (sending it proves the phone).
+  if (first.kind === "text" && /^\s*join\b/i.test(first.text)) {
+    const r = await join(msg.from, contactName);
+    if (!r.ok) return void (await sendText(msg.from, r.reason));
+    const m = await merchants.get(r.merchant_id);
+    if (!m) return;
+    const c = await conversationFor(m.id, "WA");
+    if (!r.already) {
+      await db.message.deleteMany({ where: { conversation_id: c.id } });
+      await db.conversation.update({ where: { id: c.id }, data: { language: null, pending_text: null, pending_voice: false } });
+    }
+    await welcome(msg.from, m, r.already, contactName);
+    if (!r.already || !c.language) return askLanguage(msg.from, m.owner_name.split(" ")[0], c.id);
+    return;
+  }
+
   // Who is this? A claimed number speaks as its shop; the host's demo phone as the switcher's pick;
   // the seeded shops match by phone.
   const claimed = await boundMerchant(msg.from);
@@ -57,7 +74,7 @@ export async function handleInbound({ msg }: Inbound) {
       : (await merchants.list()).find((m) => samePhone(m.phone, msg.from));
   // The number is public, so strangers will message it: point them at the claim page.
   if (!merchant)
-    return void (await sendText(msg.from, `Namaste! Ye Hisaab demo hai. Kisi dukaan ke maalik bankar try karne ke liye yahan shop chuniye: ${process.env.APP_URL ?? ""}/claim`));
+    return void (await sendText(msg.from, `Namaste! Ye Hisaab demo hai. Kisi dukaan ke maalik bankar try karne ke liye JOIN HISAAB bhejiye, ya yahan shop chuniye: ${process.env.APP_URL ?? ""}/claim`));
 
   const p = parseInbound(msg);
   const conv = await conversationFor(merchant.id, "WA");

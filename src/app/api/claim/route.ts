@@ -31,7 +31,7 @@ export async function GET(req: Request) {
       state: m.is_demo ? "RESERVED" : active.has(m.id) ? "TAKEN" : "FREE",
       ...(active.has(m.id) ? { held_by: mask(active.get(m.id)!.phone) } : {}),
     })),
-    ...(admin ? { claims: bindings.map((b) => ({ id: b.id, merchant_id: b.merchant_id, phone: `+${b.phone}`, status: b.status, created_at: b.created_at, activated_at: b.activated_at })) } : {}),
+    ...(admin ? { claims: bindings.map((b) => ({ id: b.id, merchant_id: b.merchant_id, phone: `+${b.phone}`, display_name: b.display_name, status: b.status, created_at: b.created_at, activated_at: b.activated_at })) } : {}),
   });
 }
 
