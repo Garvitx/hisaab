@@ -23,7 +23,7 @@ export const merchantMessage = (facts: {
   outcome: "fixed" | "awaiting_approval" | "escalated" | "warning" | "undone" | "rejected";
   amounts: Record<string, number>;
   detail?: string;
-}) => write(NOTIFIER_SYSTEM, { ...facts, amounts: Object.fromEntries(Object.entries(facts.amounts).map(([k, v]) => [k, inr(v)])) });
+}, meta?: CallMeta) => write(NOTIFIER_SYSTEM, { ...facts, amounts: Object.fromEntries(Object.entries(facts.amounts).map(([k, v]) => [k, inr(v)])) }, meta);
 
 export const approvalMessage = (facts: {
   merchant: string;
@@ -33,4 +33,4 @@ export const approvalMessage = (facts: {
   fix: string;
   amount: number;
   reason: string;
-}) => write(APPROVAL_SYSTEM, { ...facts, amount: inr(facts.amount) });
+}, meta?: CallMeta) => write(APPROVAL_SYSTEM, { ...facts, amount: inr(facts.amount) }, meta);

@@ -1,13 +1,34 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import Anthropic from "@anthropic-ai/sdk";
+import { db } from "@/lib/db";
+import { refreshCaseCost } from "@/lib/cost";
+import { llmCostInr } from "@/config/pricing";
 import { trace } from "./trace";
 import type { LlmRole } from "@/generated/prisma/client";
 
 // Who made an AI call and for which case / chat, so cost tracking can attribute it.
 export type CallMeta = { role: LlmRole; case_id?: string | null; conversation_id?: string | null };
 
-// Phase 0 hook: cost tracking (llm_calls rows, pricing) is implemented by the cost builder.
-// Every Anthropic call in the app goes through create(), so this sees all of them.
-export async function recordLlmCall(_meta: CallMeta, _model: string, _res: Anthropic.Message, _ms: number): Promise<void> {}
+// Calls made before their case exists (the hunter) push their llm_calls ids here, so detect can attach
+// them once the case is created. AsyncLocalStorage keeps concurrent merchants' runs apart.
+export const llmCalls = new AsyncLocalStorage<string[]>();
+
+// One llm_calls row per Anthropic response. Every Anthropic call in the app goes through create(), so this sees all of them.
+export async function recordLlmCall(meta: CallMeta, model: string, res: Anthropic.Message, ms: number): Promise<void> {
+  const u = res.usage;
+  const usage = {
+    input_tokens: u?.input_tokens ?? 0,
+    output_tokens: u?.output_tokens ?? 0,
+    cache_read_tokens: u?.cache_read_input_tokens ?? 0,
+    cache_write_tokens: u?.cache_creation_input_tokens ?? 0,
+  };
+  const row = await db.llmCall.create({
+    data: { role: meta.role, case_id: meta.case_id ?? null, conversation_id: meta.conversation_id ?? null, model: res.model || model, ...usage, cost_inr: llmCostInr(res.model || model, usage), ms },
+    select: { id: true },
+  });
+  llmCalls.getStore()?.push(row.id);
+  if (meta.case_id) await refreshCaseCost(meta.case_id);
+}
 
 // Per-role models come from env so they can be swapped on the day (CLAUDE.md section 2).
 export const MODEL = {

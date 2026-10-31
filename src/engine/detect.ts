@@ -1,6 +1,8 @@
 // One detection pass over a changed merchant: rules + optional hunter -> verified findings -> case -> default actions.
 import { db } from "@/lib/db";
 import { trace } from "@/agent/trace";
+import { llmCalls } from "@/agent/llm";
+import { refreshCaseCost } from "@/lib/cost";
 import type { FindingOrigin, Verdict } from "@/generated/prisma/client";
 import * as billing from "@/systems/billing";
 import * as disputes from "@/systems/disputes";
@@ -46,11 +48,12 @@ export async function detectMerchant(
   },
 ): Promise<{ case_id: string | null; findings: number }> {
   type F = { origin: FindingOrigin; check: string; title: string; amount: number; refs: Refs; verified: boolean; verdict: Verdict };
+  const huntCalls: string[] = []; // llm_calls ids the hunter writes before the case exists
   // Rules and the hunter start together: the hunter is the slow half, so this keeps detect_ms near the LLM's latency.
   const [rules, hyps] = await Promise.all([
     reconcile(merchant_id),
     opts.hunt
-      ? snapshot(merchant_id).then((s) => opts.hunt!(s, opts.events)).catch((e) => {
+      ? snapshot(merchant_id).then((s) => llmCalls.run(huntCalls, () => opts.hunt!(s, opts.events))).catch((e) => {
           console.error("[detect] hunter failed", (e as Error)?.message || e);
           return [] as Hypothesis[];
         })
@@ -90,6 +93,10 @@ export async function detectMerchant(
 
   const detect_ms = Date.now() - opts.firstEventAt.getTime();
   const c = await db.case.create({ data: { merchant_id, source: "DETECTED", summary: fresh.map((f) => f.title).join("; "), detect_ms } });
+  if (huntCalls.length) {
+    await db.llmCall.updateMany({ where: { id: { in: huntCalls } }, data: { case_id: c.id } });
+    await refreshCaseCost(c.id);
+  }
   const rows = await db.finding.createManyAndReturn({
     data: fresh.map((f) => ({ case_id: c.id, origin: f.origin, check: f.check, title: f.title, amount: f.amount, evidence_refs: f.refs as object, verified: f.verified, verdict: f.verdict })),
   });

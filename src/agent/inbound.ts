@@ -70,7 +70,7 @@ export async function handleInbound({ msg }: Inbound) {
   else if (p.kind === "button") text = p.title;
   else if (p.kind === "voice") {
     const media = await fetchMedia(p.mediaId);
-    const [heard, url] = await Promise.all([stt(media.buf, media.mime), uploadPublicMedia(media.buf, media.mime, `${msg.id}.ogg`).catch(() => null)]);
+    const [heard, url] = await Promise.all([stt(media.buf, media.mime, { conversation_id: conv.id }), uploadPublicMedia(media.buf, media.mime, `${msg.id}.ogg`).catch(() => null)]);
     text = heard.text;
     voice = true;
     spoken = heard.language;
@@ -111,7 +111,7 @@ export async function handleInbound({ msg }: Inbound) {
 
   // Voice in → voice note plus the same text (CLAUDE.md section 9). Only the demo merchant has a real phone.
   if (voice) {
-    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, ttsLang((await db.conversation.findUnique({ where: { id: conv.id }, select: { language: true } }))?.language ?? language)).catch((e) => ({ ok: false, error: (e as Error).message }));
+    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, ttsLang((await db.conversation.findUnique({ where: { id: conv.id }, select: { language: true } }))?.language ?? language), { conversation_id: conv.id }).catch((e) => ({ ok: false, error: (e as Error).message }));
     if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text: reply, media_url: v.link, wamid: v.wamid });
     else console.error("[wa] voice reply failed", v.error);
   }

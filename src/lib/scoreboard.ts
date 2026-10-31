@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { aiStats, type AiStats } from "@/lib/cost";
 
 // Scoreboard only (UI code, not agent code): reading hisaab.injections here is allowed, CLAUDE.md rule 3.
 
@@ -58,19 +59,23 @@ export function computeScoreboard(injections: Inj[], cases: Cs[], credits: Cr[])
   };
 }
 
-export async function getScoreboard(): Promise<Scoreboard> {
-  const [injections, cases, credits, undone] = await Promise.all([
+export async function getScoreboard(): Promise<Scoreboard & { ai: AiStats }> {
+  const [injections, cases, credits, undone, ai] = await Promise.all([
     db.injection.findMany({
       select: { id: true, merchant_id: true, is_decoy: true, created_at: true, detected_case_id: true, detected_at: true },
     }),
     db.case.findMany({ select: { id: true, merchant_id: true, opened_at: true, detect_ms: true } }),
     db.credit.findMany({ select: { amount: true, action_id: true } }),
     db.action.findMany({ where: { status: "UNDONE" }, select: { id: true } }),
+    aiStats(),
   ]);
   const u = new Set(undone.map((a) => a.id));
-  return computeScoreboard(
-    injections,
-    cases,
-    credits.map((c) => ({ amount: c.amount, action_status: c.action_id && u.has(c.action_id) ? "UNDONE" : null })),
-  );
+  return {
+    ...computeScoreboard(
+      injections,
+      cases,
+      credits.map((c) => ({ amount: c.amount, action_status: c.action_id && u.has(c.action_id) ? "UNDONE" : null })),
+    ),
+    ai,
+  };
 }

@@ -8,6 +8,7 @@ import { usePoll } from "@/components/live";
 import { ago, dayYear, inr, seconds, type Json } from "@/components/format";
 import { ActionStatus, CaseStatus, Empty, Failed, OriginBadge, Panel, Pill, Skeleton, TierBadge } from "@/components/bits";
 import { TraceTimeline } from "@/components/trace";
+import { CaseCost } from "@/components/case-cost";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -133,6 +134,7 @@ export function CaseView({ params }: { params: Promise<{ id: string }> }) {
           <CaseStatus s={c.status} />
         </div>
         <p className="mt-1 max-w-[70ch] text-ink-2">{c.summary}</p>
+        <CaseCost c={c} />
         <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
           {[
             ["Merchant", <Link key="m" href={`/ops/merchants/${c.merchant_id}`} className="rounded text-sky-text hover:underline">{c.merchant_id}</Link>],
