@@ -3,6 +3,7 @@
 
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
+import { speakable } from "./numbers.ts";
 
 export type Lang = "hi" | "hinglish" | "en";
 
@@ -45,7 +46,7 @@ export async function ttsMp3(text: string, lang: Lang): Promise<Buffer> {
     method: "POST",
     headers: { "api-subscription-key": key("TTS"), "Content-Type": "application/json" },
     body: JSON.stringify({
-      text: text.slice(0, 2500),
+      text: speakable(text, lang).slice(0, 2500),
       language_code: lang === "en" ? "en-IN" : "hi-IN",
       model: "bulbul:v3",
       speaker: SPEAKER,

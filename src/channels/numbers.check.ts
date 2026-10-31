@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import { inWords, speakable } from "./numbers.ts";
+assert.equal(inWords(3321, "hi"), "तीन हज़ार तीन सौ इक्कीस");
+assert.equal(inWords(594, "hi"), "पाँच सौ चौरानबे");
+assert.equal(inWords(135, "hi"), "एक सौ पैंतीस");
+assert.equal(inWords(1850, "hi"), "एक हज़ार आठ सौ पचास");
+assert.equal(inWords(250000, "hi"), "दो लाख पचास हज़ार");
+assert.equal(inWords(12345678, "hi"), "एक करोड़ तेईस लाख पैंतालीस हज़ार छह सौ अठहत्तर");
+assert.equal(inWords(3321, "en"), "three thousand three hundred and twenty-one");
+assert.equal(inWords(100, "en"), "one hundred");
+assert.equal(speakable("Aapko kal ₹3,186 milenge, 10:43 pe.", "hinglish"), "Aapko kal तीन हज़ार एक सौ छियासी रुपये milenge, 10:43 pe.");
+assert.equal(speakable("total 3321 rupaye, priya1734@oksbi se", "hinglish"), "total तीन हज़ार तीन सौ इक्कीस rupaye, priya1734@oksbi se");
+assert.equal(speakable("₹594 rupaye ka refund", "hinglish"), "पाँच सौ चौरानबे रुपये ka refund");
+assert.equal(speakable("Rs 500 on 2026-10-31", "en"), "five hundred rupees on 2026-10-31");
+assert.equal(speakable("14 payments", "hi"), "14 payments");
+console.log("numbers ok");
