@@ -1,13 +1,11 @@
-import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { qrSigOk } from "@/lib/qr-sig";
 import * as merchants from "@/systems/merchants";
 
-// The demo pay page: { mid, k, name, amount, pin, idem } -> a SUCCESS payment.
+// The static shop QR's pay page: { mid, sig, payer_name, amount, pin, idem? } -> a SUCCESS payment.
 // No real money moves; the outbox trigger fires like for any other payment.
-
-const tokenOk = (k: unknown, want = process.env.PAY_TOKEN) =>
-  !!want && typeof k === "string" && k.length === want.length && timingSafeEqual(Buffer.from(k), Buffer.from(want));
 
 // ponytail: in-memory, so both limits are per serverless instance (a second warm instance allows a second
 // payment in the same 5 s, and a replayed idem key landing on another instance would insert again).
@@ -26,17 +24,15 @@ const ipOf = (req: Request) =>
 export async function POST(req: Request) {
   const b = await req.json().catch(() => null);
   if (!b || typeof b !== "object") return bad(400, "Bad request.");
-  if (!tokenOk(b.k)) return bad(401, "This pay link is not valid.");
+  // The signature binds the QR to one merchant: the only mid ever credited is the signed one.
+  if (typeof b.mid !== "string" || !qrSigOk(b.mid, b.sig)) return bad(401, "This QR is not valid.");
 
-  const name = typeof b.name === "string" ? b.name.trim() : "";
+  const name = typeof b.payer_name === "string" ? b.payer_name.trim() : "";
   if (name.length < 1 || name.length > 30) return bad(400, "Enter a name of 1 to 30 characters.");
   if (!Number.isInteger(b.amount) || b.amount < 1 || b.amount > 5000) return bad(400, "Amount must be ₹1 to ₹5,000.");
-  if (typeof b.mid !== "string") return bad(400, "Bad request.");
-  const idem = typeof b.idem === "string" && b.idem.length <= 64 ? b.idem : null;
-  if (!idem) return bad(400, "Bad request.");
-
-  // A retried attempt gets the same answer instead of a second payment.
-  const prev = done.get(idem);
+  // Optional idempotency key: a retried attempt gets the same answer instead of a second payment.
+  const idem = typeof b.idem === "string" && b.idem.length <= 64 ? `${b.mid}:${b.idem}` : null;
+  const prev = idem && done.get(idem);
   if (prev) return NextResponse.json(prev);
 
   if (b.pin !== "1111") return bad(422, "Wrong PIN. The demo PIN is 1111.");
@@ -64,7 +60,8 @@ export async function POST(req: Request) {
       },
     });
     const out: Paid = { txn_ref: p.txn_ref, amount: p.amount, business_name: m.business_name, created_at: p.created_at.toISOString() };
-    done.set(idem, out);
+    if (done.size > 1000) done.clear(); // replays only matter for seconds; keep the map bounded
+    if (idem) done.set(idem, out);
     return NextResponse.json(out);
   } catch (err) {
     lastPay.delete(ip);

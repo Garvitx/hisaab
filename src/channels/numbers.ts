@@ -32,12 +32,28 @@ export function inWords(n: number, lang: "hi" | "en"): string {
   return parts.join(" ");
 }
 
+// UPI handle suffix → how a person says the app/bank. ponytail: common handles only; others fall back to just the name.
+const UPI: Record<string, [hi: string, en: string]> = {
+  oksbi: ["एस बी आई", "S B I"], sbi: ["एस बी आई", "S B I"], okhdfcbank: ["एच डी एफ सी", "H D F C"], hdfcbank: ["एच डी एफ सी", "H D F C"],
+  okicici: ["आई सी आई सी आई", "I C I C I"], icici: ["आई सी आई सी आई", "I C I C I"], ibl: ["आई सी आई सी आई", "I C I C I"],
+  okaxis: ["एक्सिस", "Axis"], axl: ["एक्सिस", "Axis"], ybl: ["फ़ोनपे", "PhonePe"], paytm: ["पेटीएम", "Paytm"], ptyes: ["पेटीएम", "Paytm"],
+  apl: ["अमेज़न पे", "Amazon Pay"], upi: ["यू पी आई", "U P I"], kotak: ["कोटक", "Kotak"],
+};
+
+// "priya1734@oksbi" → "Priya, एस बी आई UPI". Digits and dots in the handle are noise when spoken.
+function speakVpa(local: string, handle: string, l: "hi" | "en") {
+  const name = local.replace(/[\d._-]+/g, " ").trim().split(/\s+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") || "customer";
+  const bank = UPI[handle.toLowerCase()]?.[l === "hi" ? 0 : 1];
+  return bank ? `${name}, ${bank} UPI` : name;
+}
+
 // "₹3,321" / "3,321 rupaye" / "Rs 500" → words + rupees. Bare numbers of 3+ digits too;
 // times (10:43), dates (2026-10-31) and short numbers are left for the TTS.
 export function speakable(text: string, lang: "hi" | "hinglish" | "en") {
   const l = lang === "en" ? "en" : "hi";
   const rupees = l === "hi" ? "रुपये" : "rupees";
   return text
+    .replace(/\b([a-z0-9._-]{2,})@([a-z]{2,})\b/gi, (_, local, handle) => speakVpa(local, handle, l))
     .replace(/(?:₹|\bRs\.?\s?|\bINR\s?)\s?(\d[\d,]*)(?:\s*(?:rupaye|rupees|rupee|रुपये|रुपए))?/gi, (_, d) => `${inWords(Number(d.replace(/,/g, "")), l)} ${rupees}`)
     .replace(/(?<![\d:/-])\b(\d{1,3}(?:,\d{2,3})+|\d{3,})\b(?![\d:/-])/g, (d) => inWords(Number(d.replace(/,/g, "")), l));
 }

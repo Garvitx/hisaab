@@ -18,7 +18,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${mukta.variable} ${anek.variable} h-full`}>
       <body className="flex min-h-full flex-col">
-        <Suspense fallback={<div className="h-14 bg-navy" />}>
+        <Suspense fallback={null}>
           <SiteHeader />
         </Suspense>
         {children}

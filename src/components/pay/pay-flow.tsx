@@ -6,12 +6,12 @@ import { inr } from "@/components/format";
 import s from "./pay.module.css";
 
 type Paid = { txn_ref: string; amount: number; business_name: string; created_at: string };
-type Props = { mid: string; k: string; businessName: string; city: string };
+type Props = { mid: string; sig: string; businessName: string; city: string };
 
 const MAX = 5000;
 const CHIPS = ["Judge", "Mentor", "Guest"];
 
-export function PayFlow({ mid, k, businessName, city }: Props) {
+export function PayFlow({ mid, sig, businessName, city }: Props) {
   const [step, setStep] = useState<"amount" | "pin" | "done">("amount");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -42,7 +42,7 @@ export function PayFlow({ mid, k, businessName, city }: Props) {
         method: "POST",
         headers: { "content-type": "application/json" },
         // One idempotency key per PIN attempt: a replay of this attempt returns the same payment.
-        body: JSON.stringify({ mid, k, name: name.trim(), amount: n, pin: p, idem: crypto.randomUUID() }),
+        body: JSON.stringify({ mid, sig, payer_name: name.trim(), amount: n, pin: p, idem: crypto.randomUUID() }),
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {

@@ -17,11 +17,11 @@ export function PayShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PayNotice({ title, children }: { title: string; children: React.ReactNode }) {
+export function PayNotice({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <section className="rounded-[var(--radius-card)] bg-paper px-5 py-6 shadow-[var(--shadow-card)]">
       <h1 className="text-2xl text-ink">{title}</h1>
-      <p className="mt-2 text-ink-2">{children}</p>
+      {children && <p className="mt-2 text-ink-2">{children}</p>}
     </section>
   );
 }

@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic } from "lucide-react";
+import { Mic, Pause, Play, Volume2 } from "lucide-react";
 import type { MeraHisaab as D } from "@/app/api/ui/m/[mid]/route";
-import { announce, usePoll } from "@/components/live";
+import { announce, setSound, usePoll, useSound } from "@/components/live";
 import { ago, day, inr, time, type Json } from "@/components/format";
 import { Empty, Failed, Panel, Skeleton } from "@/components/bits";
 import { Button } from "@/components/ui/button";
+import { MerchantSwitcher } from "@/components/merchant-switcher";
+import { CollectPayment } from "@/components/collect-payment";
 import { cn } from "@/lib/utils";
 
 type M = Json<D>;
@@ -50,6 +52,59 @@ function Settlement({ s, open }: { s: S; open?: boolean }) {
   );
 }
 
+// A WhatsApp-style voice bubble: play/pause, progress, duration once known (preload="none" keeps it cheap).
+function VoiceNote({ src }: { src: string }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0);
+  const [dur, setDur] = useState(0);
+  const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  const toggle = () => {
+    const a = ref.current;
+    if (!a) return;
+    if (a.paused) a.play().catch(() => setPlaying(false));
+    else a.pause();
+  };
+  return (
+    <div className="flex min-w-52 items-center gap-2.5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={playing ? "Pause voice note" : "Play voice note"}
+        className="grid size-10 shrink-0 place-items-center rounded-full bg-navy text-navy-ink transition-colors duration-(--dur-micro) hover:bg-navy-2"
+      >
+        {playing ? <Pause className="size-4" aria-hidden /> : <Play className="size-4 translate-x-px" aria-hidden />}
+      </button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="h-1 overflow-hidden rounded-full bg-navy-ink-2">
+          <div
+            className="h-full origin-left rounded-full bg-sky"
+            style={{ transform: `scaleX(${dur ? Math.min(1, pos / dur) : 0})` }}
+          />
+        </div>
+        <span className="num flex items-center gap-1 text-xs text-ink-3">
+          <Mic className="size-3" aria-hidden />
+          {dur ? `${fmt(playing || pos ? pos : dur)}${playing || pos ? ` / ${fmt(dur)}` : ""}` : "Voice note"}
+        </span>
+      </div>
+      <audio
+        ref={ref}
+        src={src}
+        preload="none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setPos(0);
+        }}
+        onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDur(e.currentTarget.duration)}
+        onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && setDur(e.currentTarget.duration)}
+        onTimeUpdate={(e) => setPos(e.currentTarget.currentTime)}
+      />
+    </div>
+  );
+}
+
 function Chat({ mid, messages }: { mid: string; messages: M["messages"] }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -86,10 +141,28 @@ function Chat({ mid, messages }: { mid: string; messages: M["messages"] }) {
     }
   };
 
-  const all = [
-    ...messages.map((m) => ({ id: m.id, dir: m.direction, voice: m.type === "VOICE", text: m.text ?? m.transcript ?? "", transcript: m.type === "VOICE" ? m.transcript : null, at: m.created_at as string | null })),
-    ...local.map((m) => ({ id: String(m.id), dir: m.dir, voice: false, text: m.text, transcript: null, at: null })),
-  ];
+  type B = { id: string; dir: string; merged?: boolean; media: string | null; text: string; transcript: string | null; at: string | null };
+  // We send an OUT voice note and the same text as a second message: show them as one bubble.
+  const all: B[] = [];
+  for (const m of messages) {
+    const text = (m.text ?? "").trim();
+    const prev = all[all.length - 1];
+    if (m.direction === "OUT" && m.type === "TEXT" && prev?.dir === "OUT" && prev.media && prev.text === text) {
+      prev.merged = true;
+      continue;
+    }
+    const voice = m.type === "VOICE" && !!m.media_url;
+    all.push({
+      id: m.id,
+      dir: m.direction,
+      media: voice ? m.media_url : null,
+      // IN voice: the merchant's words are the transcript; OUT voice: Hisaab's reply is the text.
+      text: voice ? (m.direction === "IN" ? (m.transcript ?? m.text ?? "") : (m.text ?? m.transcript ?? "")).trim() : (m.text ?? m.transcript ?? ""),
+      transcript: !voice && m.type === "VOICE" ? m.transcript : null,
+      at: m.created_at,
+    });
+  }
+  for (const m of local) all.push({ id: String(m.id), dir: m.dir, media: null, text: m.text, transcript: null, at: null });
 
   return (
     <Panel title="WhatsApp par baat" aside={<span className="text-sm text-ink-3">Hisaab assistant</span>}>
@@ -103,13 +176,25 @@ function Chat({ mid, messages }: { mid: string; messages: M["messages"] }) {
                 m.dir === "IN" ? "self-end rounded-br-sm bg-wa text-ink" : "self-start rounded-bl-sm bg-paper text-ink",
               )}
             >
-              {m.voice && (
-                <span className="mb-0.5 flex items-center gap-1 text-sm text-ink-3">
-                  <Mic className="size-3.5" aria-hidden /> Voice note
-                </span>
+              {m.media ? (
+                <>
+                  <VoiceNote src={m.media} />
+                  {m.text &&
+                    (m.merged ? (
+                      <p className="mt-2 whitespace-pre-wrap break-words">{m.text}</p>
+                    ) : (
+                      <details className="mt-1.5 text-sm">
+                        <summary className="w-fit cursor-pointer rounded text-ink-3">Transcript</summary>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-ink-2">{m.text}</p>
+                      </details>
+                    ))}
+                </>
+              ) : (
+                <>
+                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                  {m.transcript && m.transcript !== m.text && <p className="mt-1 text-sm text-ink-3">{m.transcript}</p>}
+                </>
               )}
-              <p className="whitespace-pre-wrap break-words">{m.text}</p>
-              {m.transcript && m.transcript !== m.text && <p className="mt-1 text-sm text-ink-3">{m.transcript}</p>}
               {m.at && <p className="num mt-0.5 text-right text-xs text-ink-3">{time(m.at)}</p>}
             </div>
           ))
@@ -138,26 +223,46 @@ function Chat({ mid, messages }: { mid: string; messages: M["messages"] }) {
   );
 }
 
-export function MeraHisaab({ mid, compact }: { mid: string; compact?: boolean }) {
+export function MeraHisaab({
+  mid,
+  compact,
+  qr,
+  switchMode = "m",
+}: {
+  mid: string;
+  compact?: boolean;
+  qr?: React.ReactNode;
+  switchMode?: "m" | "demo";
+}) {
   const { data: m, error } = usePoll<M>(`/api/ui/m/${encodeURIComponent(mid)}`);
 
-  // A new credit lands: the Soundbox-style announcement (voice agent's TTS), once per credit.
+  // New payments and credits since the page loaded: toast each, one announcement per poll.
+  // A payment wins the voice when both land together; the credit still gets its toast.
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!m) return;
-    const ids = m.credits.map((c) => c.id);
+    const ids = [...m.payments.map((p) => p.id), ...m.credits.map((c) => c.id)];
     if (!seen.current) {
       seen.current = new Set(ids);
       return;
     }
-    for (const c of m.credits) {
-      if (seen.current.has(c.id)) continue;
-      seen.current.add(c.id);
+    const s = seen.current;
+    const pays = m.payments.filter((p) => !s.has(p.id)).reverse();
+    const creds = m.credits.filter((c) => !s.has(c.id));
+    ids.forEach((id) => s.add(id));
+    for (const p of pays) {
+      if (p.status !== "SUCCESS") continue;
+      toast.success(`${p.payer} paid ${inr(p.amount)}`);
+      announce(`Paytm par ₹${p.amount} prapt hue`);
+    }
+    const spoke = pays.some((p) => p.status === "SUCCESS");
+    for (const c of creds) {
       if (c.undone) continue;
-      announce(`Paytm par ₹${c.amount} refund prapt hue`);
       toast.success(`${inr(c.amount)} wapas aaye`, { description: c.reason });
+      if (!spoke) announce(`Paytm par ₹${c.amount} refund prapt hue`);
     }
   }, [m]);
+  const sound = useSound();
 
   if (!m)
     return error === "404" ? (
@@ -171,8 +276,52 @@ export function MeraHisaab({ mid, compact }: { mid: string; compact?: boolean })
   const [latest, ...rest] = m.settlements;
   const credited = m.credits.filter((c) => !c.undone).reduce((a, c) => a + c.amount, 0);
 
+  const feed = (
+    <>
+      <Panel title="Naye payments" aside={<span className="text-sm text-ink-3">Live</span>}>
+        {m.payments.length ? (
+          <ul className="divide-y divide-rule" aria-live="polite">
+            {m.payments.slice(0, compact ? 6 : 15).map((p) => (
+              <li key={p.id} className="row-in flex items-baseline justify-between gap-4 px-4 py-2.5">
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-ink">{p.payer}</span>
+                  <span className="num text-sm text-ink-3">
+                    {time(p.created_at)} IST{p.status !== "SUCCESS" && `, ${p.status === "PENDING" ? "pending" : p.status === "FAILED" ? "failed" : "refunded"}`}
+                  </span>
+                </span>
+                <span className={cn("num shrink-0 text-lg font-semibold", p.status === "SUCCESS" ? "text-good" : "text-ink-3")}>
+                  +{inr(p.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty title="Abhi koi payment nahi">Naya payment aate hi yahan dikhega aur Soundbox bolega.</Empty>
+        )}
+      </Panel>
+
+    </>
+  );
+
   const statement = (
     <div className="flex min-w-0 flex-col gap-4">
+      <MerchantSwitcher mid={mid} mode={switchMode} />
+      {qr && (
+        <CollectPayment businessName={m.merchant.business_name} city={m.merchant.city} payments={m.payments}>
+          {qr}
+        </CollectPayment>
+      )}
+      {!sound && (
+        <button
+          type="button"
+          onClick={() => setSound(true)}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-(--radius-card) border border-sky bg-sky-wash px-4 font-semibold text-sky-ink transition-colors duration-(--dur-micro) hover:bg-sky"
+        >
+          <Volume2 className="size-4" aria-hidden />
+          Enable payment sound
+        </button>
+      )}
+      {compact && feed}
       <Panel>
         <div className="px-4 pt-4">
           <p className="text-ink-3">Namaste {m.merchant.owner_name.split(" ")[0]} ji</p>
@@ -189,6 +338,7 @@ export function MeraHisaab({ mid, compact }: { mid: string; compact?: boolean })
         )}
       </Panel>
 
+      {!compact && feed}
       {m.credits.length > 0 && (
         <Panel title="Wapas mila" aside={<span className="num font-semibold text-good">{inr(credited)}</span>}>
           <ul className="divide-y divide-rule">

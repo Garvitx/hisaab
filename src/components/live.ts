@@ -124,8 +124,37 @@ export function chime() {
   });
 }
 
-// Soundbox-style announcement from the voice agent's TTS route; fails silently.
+// Soundbox-style announcement from the voice agent's TTS route.
+// Audio is cached per text (so per amount), plays one at a time, and falls back to the chime if TTS fails.
+const clips = new Map<string, Promise<string>>();
+let queue: Promise<void> = Promise.resolve();
+
+function clip(text: string) {
+  let p = clips.get(text);
+  if (!p) {
+    p = fetch(`/api/announce?text=${encodeURIComponent(text)}`).then(async (r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return URL.createObjectURL(await r.blob());
+    });
+    p.catch(() => clips.delete(text)); // retry TTS next time
+    clips.set(text, p);
+  }
+  return p;
+}
+
 export function announce(text: string) {
   if (!readSound()) return;
-  new Audio(`/api/announce?text=${encodeURIComponent(text)}`).play().catch(() => {});
+  queue = queue.then(async () => {
+    try {
+      const a = new Audio(await clip(text));
+      await a.play();
+      await new Promise<void>((done) => {
+        a.onended = () => done();
+        a.onerror = () => done();
+        setTimeout(done, 8000);
+      });
+    } catch {
+      chime();
+    }
+  });
 }

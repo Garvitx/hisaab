@@ -27,6 +27,7 @@ export function SiteHeader() {
       if (localStorage.getItem("hisaab:role") === "merchant") setStored("merchant");
     } catch {}
   }, []);
+  if (path.startsWith("/pay")) return null; // the pay page has its own shell
   const role: Role = path.startsWith("/m/") ? "merchant" : path.startsWith("/ops") ? "ops" : stored;
 
   const pick = (r: Role) => {

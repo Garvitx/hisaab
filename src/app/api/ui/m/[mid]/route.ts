@@ -6,7 +6,7 @@ import { day, inr, month } from "@/components/format";
 // One stage of parallel reads: every round trip to Neon costs about half a second.
 async function load(mid: string) {
   const w = { merchant_id: mid };
-  const [merchant, settlements, credits, charges, disputes, loans, undone, messages] = await Promise.all([
+  const [merchant, settlements, credits, charges, disputes, loans, undone, messages, payments] = await Promise.all([
     db.merchant.findUnique({
       where: { id: mid },
       select: { id: true, business_name: true, owner_name: true, city: true, language: true },
@@ -21,7 +21,13 @@ async function load(mid: string) {
       where: { conversation: w, audience: "MERCHANT" },
       orderBy: { created_at: "desc" },
       take: 60,
-      select: { id: true, direction: true, type: true, text: true, transcript: true, created_at: true },
+      select: { id: true, direction: true, type: true, text: true, transcript: true, media_url: true, created_at: true },
+    }),
+    db.payment.findMany({
+      where: w,
+      orderBy: { created_at: "desc" },
+      take: 15,
+      select: { id: true, amount: true, payer_name: true, payer_vpa: true, status: true, created_at: true },
     }),
   ]);
   if (!merchant) return null;
@@ -82,6 +88,7 @@ async function load(mid: string) {
     credits: credits.map((c) => ({ ...c, undone: !!c.action_id && isUndone.has(c.action_id) })),
     warnings,
     messages: messages.reverse(),
+    payments: payments.map(({ payer_name, payer_vpa, ...p }) => ({ ...p, payer: payer_name || payer_vpa })),
   };
 }
 export type MeraHisaab = NonNullable<Awaited<ReturnType<typeof load>>>;

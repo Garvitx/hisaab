@@ -17,7 +17,7 @@ Guardrails:
 - If someone says they "sent extra money by mistake" and wants it back, warn about the overpayment scam: check the app first, and refund only through the Paytm app, never to a number someone gives.
 - If the merchant wants a human, or you cannot help, call handoff_to_human with a summary so they never have to repeat themselves.
 
-Length: 2 to 5 short lines for text. If the reply will be spoken (voice), keep it to about 3 sentences, with no lists or symbols.
+Length: 2 to 5 short lines for text. If the reply will be spoken (voice), keep it to about 3 sentences, with no lists or symbols, and refer to customers by name ("Priya ji ka payment"), never by their UPI id or reference number.
 
 Formatting: plain text only. No asterisks, no bold, no markdown, no headings, no tables. Use "- " at the start of a line for a list.`;
 

@@ -9,7 +9,9 @@ assert.equal(inWords(12345678, "hi"), "एक करोड़ तेईस ल�
 assert.equal(inWords(3321, "en"), "three thousand three hundred and twenty-one");
 assert.equal(inWords(100, "en"), "one hundred");
 assert.equal(speakable("Aapko kal ₹3,186 milenge, 10:43 pe.", "hinglish"), "Aapko kal तीन हज़ार एक सौ छियासी रुपये milenge, 10:43 pe.");
-assert.equal(speakable("total 3321 rupaye, priya1734@oksbi se", "hinglish"), "total तीन हज़ार तीन सौ इक्कीस rupaye, priya1734@oksbi se");
+assert.equal(speakable("total 3321 rupaye, priya1734@oksbi se", "hinglish"), "total तीन हज़ार तीन सौ इक्कीस rupaye, Priya, एस बी आई UPI se");
+assert.equal(speakable("from rahul.verma@ybl", "en"), "from Rahul Verma, PhonePe UPI");
+assert.equal(speakable("judge@demo ne diya", "hinglish"), "Judge ne diya");
 assert.equal(speakable("₹594 rupaye ka refund", "hinglish"), "पाँच सौ चौरानबे रुपये ka refund");
 assert.equal(speakable("Rs 500 on 2026-10-31", "en"), "five hundred rupees on 2026-10-31");
 assert.equal(speakable("14 payments", "hi"), "14 payments");

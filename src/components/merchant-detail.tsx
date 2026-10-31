@@ -41,7 +41,7 @@ const Sub = ({ children }: { children: React.ReactNode }) => (
   <h3 className="border-t border-rule bg-paper-2 px-4 py-1.5 text-sm font-semibold text-ink-2 first:border-t-0">{children}</h3>
 );
 
-export function MerchantDetail({ params }: { params: Promise<{ mid: string }> }) {
+export function MerchantDetail({ params, qr }: { params: Promise<{ mid: string }>; qr?: React.ReactNode }) {
   const { mid } = use(params);
   const { data: m, error } = usePoll<M>(`/api/ui/merchants/${encodeURIComponent(mid)}`, 3000);
 
@@ -57,6 +57,7 @@ export function MerchantDetail({ params }: { params: Promise<{ mid: string }> })
   const p = m.merchant;
   return (
     <div className="flex flex-col gap-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
       <div>
         <Link href="/ops/merchants" className="rounded text-sm text-sky-text hover:underline">All merchants</Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -82,6 +83,8 @@ export function MerchantDetail({ params }: { params: Promise<{ mid: string }> })
             </div>
           ))}
         </dl>
+      </div>
+      {qr}
       </div>
 
       <Panel title="Cases" aside={<span className="num text-sm text-ink-3">{m.cases.length}</span>}>
@@ -134,7 +137,7 @@ export function MerchantDetail({ params }: { params: Promise<{ mid: string }> })
             <T
               head={["When", "Amount", "Status", "Payer", "Order"]}
               num={[1]}
-              rows={m.payments.map((x) => [ago(x.created_at), inr(x.amount), x.status.toLowerCase(), x.payer_vpa, x.order_ref ?? "none"])}
+              rows={m.payments.map((x) => [ago(x.created_at), inr(x.amount), x.status.toLowerCase(), x.payer_name ? `${x.payer_name} (${x.payer_vpa})` : x.payer_vpa, x.order_ref ?? "none"])}
             />
           </TabsContent>
 
