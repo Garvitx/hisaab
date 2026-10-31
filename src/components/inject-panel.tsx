@@ -163,9 +163,9 @@ export function InjectPanel({ k }: { k: string }) {
             arm ? "border-bad bg-bad-wash text-bad" : "border-rule bg-paper text-ink-2 hover:border-ink-3",
           )}
         >
-          {busy === "reset" ? "Resetting…" : arm ? "Tap again to wipe and reseed" : "Reset demo"}
+          {busy === "reset" ? "Resetting…" : arm ? "Tap again to wipe everything" : "Reset everything"}
         </button>
-        <span className="text-sm text-ink-3">Truncates every ledger and reseeds 30 clean merchants.</span>
+        <span className="text-sm text-ink-3">Back to the start: 30 clean merchants, no cases, chats cleared (WhatsApp asks the language again), policy and switcher back to default.</span>
       </div>
     </div>
   );

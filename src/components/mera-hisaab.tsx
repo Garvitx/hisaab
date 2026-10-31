@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mic, Pause, Play, Volume2 } from "lucide-react";
 import type { MeraHisaab as D } from "@/app/api/ui/m/[mid]/route";
-import { announce, announcePayments, setSound, usePoll, useSound } from "@/components/live";
+import { announce, announcePayments, setSound, useHeartbeat, usePoll, useSound } from "@/components/live";
 import { ago, day, inr, time, type Json } from "@/components/format";
 import { Empty, Failed, Panel, Skeleton } from "@/components/bits";
 import { Button } from "@/components/ui/button";
@@ -236,6 +236,8 @@ export function MeraHisaab({
   switchMode?: "m" | "demo";
 }) {
   const { data: m, error } = usePoll<M>(`/api/ui/m/${encodeURIComponent(mid)}`);
+  // The merchant page drives detection too, like /demo and /ops (SKIP LOCKED keeps it safe).
+  useHeartbeat();
 
   // New payments and credits since the page loaded: toast each, one announcement per poll.
   // A payment wins the voice when both land together; the credit still gets its toast.

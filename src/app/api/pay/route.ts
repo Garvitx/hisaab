@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { drain } from "@/inject/watch";
 import { db } from "@/lib/db";
 import { qrSigOk } from "@/lib/qr-sig";
 import * as merchants from "@/systems/merchants";
@@ -19,6 +20,8 @@ const WINDOW_MS = 5000;
 const IP_PER_MIN = 120;
 
 type Paid = { txn_ref: string; amount: number; business_name: string; created_at: string };
+
+export const maxDuration = 60;
 
 const bad = (status: number, error: string) => NextResponse.json({ error }, { status });
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "") || "payer";
@@ -72,6 +75,8 @@ export async function POST(req: Request) {
     const out: Paid = { txn_ref: p.txn_ref, amount: p.amount, business_name: m.business_name, created_at: p.created_at.toISOString() };
     if (done.size > 1000) done.clear(); // replays only matter for seconds; keep the map bounded
     if (idem) done.set(idem, out);
+    // Run the cheap rules now (card-testing bursts) even when no dashboard is open.
+    after(() => drain().catch((e) => console.error("[pay] drain failed", (e as Error)?.message || e)));
     return NextResponse.json(out);
   } catch (err) {
     lastPay.delete(key);

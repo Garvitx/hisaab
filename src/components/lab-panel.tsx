@@ -265,7 +265,7 @@ export function LabPanel({ k }: { k: string }) {
               arm ? "border-bad bg-bad-wash text-bad" : "border-rule bg-paper text-ink-2 hover:border-ink-3",
             )}
           >
-            {busy === "reset" ? "Resetting…" : arm ? "Tap again to wipe and reseed" : "Reset"}
+            {busy === "reset" ? "Resetting…" : arm ? "Tap again to wipe everything" : "Reset everything"}
           </button>
         </div>
       </div>

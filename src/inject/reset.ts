@@ -4,12 +4,12 @@ import { main as seed } from "../../prisma/seed";
 export async function reset() {
   const t0 = Date.now();
   const { db } = await import("@/lib/db");
-  // Discovered, not listed, so tables added later are wiped too. WhatsApp history survives a reset:
-  // the phones' real chat (and wa_inbox dedupe) must not vanish every time the demo restarts.
+  // Back to step 1: every table, discovered rather than listed so new ones are wiped too. That
+  // includes the chat mirror and each chat's language choice (the next message asks again) and
+  // the merchant switcher. Old WhatsApp messages stay on the phones; only our copy goes.
   const tables = (await db.$queryRawUnsafe(
     `SELECT format('%I.%I', table_schema, table_name) t FROM information_schema.tables
-     WHERE table_type = 'BASE TABLE' AND table_schema IN ('merchants','settlement','billing','logistics','disputes','lending','hisaab')
-       AND format('%I.%I', table_schema, table_name) NOT IN ('hisaab.wa_inbox', 'hisaab.conversations', 'hisaab.messages')`,
+     WHERE table_type = 'BASE TABLE' AND table_schema IN ('merchants','settlement','billing','logistics','disputes','lending','hisaab')`,
   )) as { t: string }[];
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((r) => r.t).join(", ")} RESTART IDENTITY CASCADE`);
   const truncate_ms = Date.now() - t0;
