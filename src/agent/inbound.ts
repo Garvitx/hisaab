@@ -10,6 +10,7 @@ import { converse, conversationFor, logMessage, ttsLang } from "./concierge";
 import { db } from "@/lib/db";
 import { notifyDecision } from "./outreach";
 import { trace } from "./trace";
+import { khataQuickReply } from "@/khata/whatsapp";
 
 const CHANGE = /^\s*(change language|language|bhasha badlo|bhasha badliye|bhasha|भाषा बदलो|भाषा)\s*[.!?]*\s*$/i;
 const PICKED: Record<string, string> = {
@@ -104,6 +105,13 @@ export async function handleInbound({ msg, contactName }: Inbound) {
     return void (await sendText(msg.from, "Abhi main text, voice note aur photo samajh sakta hoon. Kripya inmein se bhejein."));
   }
   if (p.kind === "text" || p.kind === "button") await logMessage({ conversation_id: conv.id, direction: "IN", type: "TEXT", text, wamid: msg.id });
+
+  // A bare "Haan" / "Nahi" to khata drafts or another shop's udhaar request is answered in code.
+  const khata = text && !image ? await khataQuickReply(merchant.id, text).catch((e) => (console.error("[wa] khata reply failed", (e as Error)?.message), null)) : null;
+  if (khata) {
+    const sent = await sendText(msg.from, khata);
+    return void (await logMessage({ conversation_id: conv.id, direction: "OUT", type: "TEXT", text: khata, wamid: sent.wamid }));
+  }
 
   // Language: chosen once per chat, then fixed. A button tap or "Haryanvi" sets it; "change language" asks again.
   let language = conv.language;

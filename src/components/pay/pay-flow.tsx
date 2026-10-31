@@ -6,18 +6,20 @@ import { inr } from "@/components/format";
 import "./pay.css";
 
 type Paid = { txn_ref: string; amount: number; business_name: string; created_at: string };
-type Props = { mid: string; sig: string; businessName: string; city: string };
+type Props = { mid: string; sig: string; businessName: string; city: string; udhaar?: { entry_id: string; outstanding: number; payer: string } | null };
 
-const MAX = 5000;
+const MAX_PAY = 5000;
 const CHIPS = ["Judge", "Mentor", "Guest"];
 const initials = (n: string) =>
   n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
-export function PayFlow({ mid, sig, businessName, city }: Props) {
+export function PayFlow({ mid, sig, businessName, city, udhaar }: Props) {
+  // An udhaar link pays at most what is outstanding; the payer can lower it, never raise it.
+  const MAX = udhaar?.outstanding ?? MAX_PAY;
   const [step, setStep] = useState<"amount" | "pin" | "done">("amount");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(udhaar?.payer ?? "");
   const [note, setNote] = useState<string | null>(null);
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(udhaar ? String(udhaar.outstanding) : "");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [shake, setShake] = useState(0);
@@ -45,7 +47,7 @@ export function PayFlow({ mid, sig, businessName, city }: Props) {
         method: "POST",
         headers: { "content-type": "application/json" },
         // One idempotency key per PIN attempt: a replay of this attempt returns the same payment.
-        body: JSON.stringify({ mid, sig, payer_name: name.trim(), amount: n, pin, idem: crypto.randomUUID(), device: deviceId() }),
+        body: JSON.stringify({ mid, sig, payer_name: name.trim(), amount: n, pin, idem: crypto.randomUUID(), device: deviceId(), u: udhaar?.entry_id }),
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -181,7 +183,7 @@ export function PayFlow({ mid, sig, businessName, city }: Props) {
           <span className="ml-1 text-6xl font-semibold">{amount ? n.toLocaleString("en-IN") : <span className="text-ink-3">0</span>}</span>
           <span aria-hidden className="pay-caret" />
         </p>
-        <p className="mt-1 text-center text-sm text-ink-3">₹1 to ₹5,000, whole rupees</p>
+        <p className="mt-1 text-center text-sm text-ink-3">{udhaar ? `Udhaar baaki ${inr(udhaar.outstanding)}, kam bhi de sakte hain` : "₹1 to ₹5,000, whole rupees"}</p>
 
         <label htmlFor="payer" className="mt-7 block text-sm text-ink-2">
           Paying as

@@ -287,6 +287,7 @@ Apply these in order:
 - **Templates** (submit tonight):
   - `hisaab_alert` (utility): "Namaste {{name}}, aapke Paytm Business account mein {{topic}} ka ek update hai: {{details}}. Poori jaankari ke liye is message ka jawab dein."
   - `hisaab_approval` (utility; as submitted): "Approval needed for {{business}} ({{mid}}): {{issue}}, amount {{amount}}. Reply APPROVE or REJECT below." A bare APPROVE / REJECT from the ops phone acts on the latest pending approval.
+  - `udhaar_reminder` (utility; each variable used once): "Namaste {{name}}, {{creditor}} ke khate mein aapka {{amount}} baaki hai. Yahan pay karein: {{link}}"
   - Chakra requires NAMED variables (lowercase, underscores); the code sends `parameter_name` for each.
 
 ---

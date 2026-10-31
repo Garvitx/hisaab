@@ -5,6 +5,7 @@ import { onPayment } from "@/agent/payments";
 import { db } from "@/lib/db";
 import { qrSigOk } from "@/lib/qr-sig";
 import * as merchants from "@/systems/merchants";
+import { KhataPayError, afterSettle, settleInTx, udhaarForPay } from "@/khata/settle";
 
 // The static shop QR's pay page: { mid, sig, payer_name, amount, pin, idem? } -> a SUCCESS payment.
 // No real money moves; the outbox trigger fires like for any other payment.
@@ -37,7 +38,12 @@ export async function POST(req: Request) {
 
   const name = typeof b.payer_name === "string" ? b.payer_name.trim() : "";
   if (name.length < 1 || name.length > 30) return bad(400, "Enter a name of 1 to 30 characters.");
-  if (!Number.isInteger(b.amount) || b.amount < 1 || b.amount > 5000) return bad(400, "Amount must be ₹1 to ₹5,000.");
+  // u = an udhaar reminder's entry: the outstanding is the ceiling (pay less, never more).
+  const u = typeof b.u === "string" && b.u ? b.u : null;
+  const owed = u ? await udhaarForPay(b.mid, u) : null;
+  if (u && !owed) return bad(409, "Ye udhaar ab baaki nahi hai.");
+  const max = owed?.outstanding ?? 5000;
+  if (!Number.isInteger(b.amount) || b.amount < 1 || b.amount > max) return bad(400, owed ? `Amount must be ₹1 to ₹${max.toLocaleString("en-IN")} (udhaar baaki).` : "Amount must be ₹1 to ₹5,000.");
   // Optional idempotency key: a retried attempt gets the same answer instead of a second payment.
   const idem = typeof b.idem === "string" && b.idem.length <= 64 ? `${b.mid}:${b.idem}` : null;
   const prev = idem && done.get(idem);
@@ -61,27 +67,34 @@ export async function POST(req: Request) {
   if (lastPay.size > 5000) lastPay.clear(); // bounded; a cleared entry only forgets a 5 s window
 
   try {
-    const p = await db.payment.create({
-      data: {
-        merchant_id: m.id,
-        // 12-digit UPI RRN like the seed's; the 7 prefix keeps it clear of the seed's 61xxxxxxxxxx range.
-        txn_ref: `7${randomInt(1e10, 1e11)}`,
-        amount: b.amount,
-        payer_vpa: `${slug(name)}@demo`,
-        payer_name: name,
-        order_ref: `DEMO-${randomBytes(4).toString("hex").toUpperCase()}`,
-        status: "SUCCESS",
-      },
-    });
+    const data = {
+      merchant_id: m.id,
+      // 12-digit UPI RRN like the seed's; the 7 prefix keeps it clear of the seed's 61xxxxxxxxxx range.
+      txn_ref: `7${randomInt(1e10, 1e11)}`,
+      amount: b.amount,
+      payer_vpa: `${slug(name)}@demo`,
+      payer_name: name,
+      order_ref: `DEMO-${randomBytes(4).toString("hex").toUpperCase()}`,
+      status: "SUCCESS" as const,
+    };
+    // An udhaar payment and its khata settlement land together or not at all.
+    const { p, settled } = u
+      ? await db.$transaction(async (tx) => {
+          const p = await tx.payment.create({ data });
+          return { p, settled: await settleInTx(tx, m.id, u, p.id, b.amount) };
+        })
+      : { p: await db.payment.create({ data }), settled: null };
     const out: Paid = { txn_ref: p.txn_ref, amount: p.amount, business_name: m.business_name, created_at: p.created_at.toISOString() };
     if (done.size > 1000) done.clear(); // replays only matter for seconds; keep the map bounded
     if (idem) done.set(idem, out);
     // Run the cheap rules now (card-testing bursts) even when no dashboard is open.
     after(() => drain().catch((e) => console.error("[pay] drain failed", (e as Error)?.message || e)));
     after(() => onPayment(p.id).catch((e) => console.error("[pay] notify failed", (e as Error)?.message || e)));
+    if (settled) after(() => afterSettle(m.id, settled).catch((e) => console.error("[pay] udhaar notify failed", (e as Error)?.message || e)));
     return NextResponse.json(out);
   } catch (err) {
     lastPay.delete(key);
+    if (err instanceof KhataPayError) return bad(409, err.message);
     console.error("pay insert failed", err);
     return bad(500, "Payment failed. Nothing was charged. Try again.");
   }

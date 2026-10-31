@@ -10,10 +10,11 @@ import * as settlement from "@/systems/settlement";
 import { sendDocument, sendText, uploadPublicMedia } from "@/channels/whatsapp";
 import { statementPdf } from "@/engine/statement-pdf";
 import { logMessage } from "./concierge";
+import { KHATA_TOOLS, KHATA_TOOL_NAMES, khataTool } from "@/khata/tools";
 
 // merchant_id is never a tool input: it is bound from the verified sender, so the model
 // can only ever see and touch the merchant it is talking to.
-export type Ctx = { merchant_id: string; conversation_id: string; image?: { url: string } | null; phone?: string | null };
+export type Ctx = { merchant_id: string; conversation_id: string; image?: { url: string } | null; phone?: string | null; voice?: boolean };
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
   type: "object" as const,
@@ -25,7 +26,7 @@ const day = { type: "string", description: "YYYY-MM-DD (IST)" };
 
 export const TOOLS: Anthropic.Tool[] = [
   { name: "find_payment", description: "Find the merchant's customer payments (default: last 2 days) with status (SUCCESS / PENDING / FAILED / REFUNDED), UPI reference and when it settles. Use for 'customer ka paisa aaya kya?', and to check a payment screenshot: search by its UPI reference / UTR (12 digits) first, then by amount and date.", input_schema: obj({ amount: { type: "integer" }, from: day, to: day, payer_vpa: { type: "string", description: "part of the payer's UPI id or name" }, upi_ref: { type: "string", description: "UPI reference / UTR / transaction id from a screenshot" } }) },
-  { name: "daily_summary", description: "Today's (or a given day's) business summary: successful payments count and total, pending/failed counts, biggest payment and payer, first/last payment time, today's scheduled deductions, expected next settlement, change vs yesterday at the same time. Use for 'aaj ka hisaab', 'aaj kitna aaya', 'daily summary'.", input_schema: obj({ date: day }) },
+  { name: "daily_summary", description: "Today's (or a given day's) business summary: successful payments count and total, pending/failed counts, biggest payment and payer, first/last payment time, today's scheduled deductions, expected next settlement, change vs yesterday at the same time, plus the khata the merchant told us (cash, kharcha, udhaar; self-reported). Use for 'aaj ka hisaab', 'aaj kitna aaya', 'daily summary'.", input_schema: obj({ date: day }) },
   { name: "forecast_settlement", description: "Expected payout for a settlement date (default tomorrow), itemised: payments being settled, scheduled deductions, pending credits. Use for 'kal kitna aayega?'.", input_schema: obj({ date: day }) },
   { name: "upcoming_deductions", description: "Deductions scheduled from tomorrow until a date (default 30 days): rent, EMIs and pending dues. Use for 'is mahine kitna katne wala hai?'.", input_schema: obj({ until: day }) },
   { name: "get_statement", description: "Settlement statement for a month (YYYY-MM) or one day (YYYY-MM-DD): totals, every deduction explained, and credits/refunds. Use for 'ye ₹135 kis cheez ka kata?' or 'mera paisa kahan gaya?'.", input_schema: obj({ period: { type: "string" } }, ["period"]) },
@@ -44,6 +45,7 @@ export const TOOLS: Anthropic.Tool[] = [
   { name: "send_statement_pdf", description: "Make the monthly statement as a PDF (every settlement, every deduction explained, refunds) and send it on WhatsApp as a document. Use for 'pichle mahine ka hisaab PDF mein bhejo', 'statement bhejo', accountant requests. period YYYY-MM; default last month.", input_schema: obj({ period: { type: "string", description: "YYYY-MM" } }) },
   { name: "loan_check", description: "The merchant asks for a new loan, a top-up, or whether they can get one. Checks eligibility from their last 30 days of collections (tier NOT_YET / ELIGIBLE / PRIORITY, indicative limit, daily EMI as 10% of settlements, payoff date) AND hands it to a Paytm lending agent, who decides. Always use this for loan requests; never promise approval.", input_schema: obj({ purpose: { type: "string", description: "what they want the loan for, if they said" } }) },
   { name: "change_language", description: "The merchant asked to talk in another language (e.g. 'English mein baat karo', 'Hindi mein bolo'). Saves it; every later reply uses it.", input_schema: obj({ language: { type: "string", enum: ["hi", "hinglish", "en", "haryanvi"] } }, ["language"]) },
+  ...KHATA_TOOLS,
   { name: "handoff_to_human", description: "Hand the conversation to a Paytm specialist with a summary so the merchant never repeats themselves. Use when they ask for a person, want to close a loan, or you cannot help.", input_schema: obj({ summary: { type: "string" } }, ["summary"]) },
 ];
 
@@ -187,5 +189,6 @@ export async function execTool(name: string, input: Record<string, any>, ctx: Ct
       return { handed_off: true };
     }
   }
+  if (KHATA_TOOL_NAMES.has(name)) return khataTool(name, input, ctx);
   throw new Error(`unknown tool ${name}`);
 }

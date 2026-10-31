@@ -228,11 +228,13 @@ export function MeraHisaab({
   mid,
   compact,
   qr,
+  khata,
   switchMode = "m",
 }: {
   mid: string;
   compact?: boolean;
   qr?: React.ReactNode;
+  khata?: React.ReactNode; // the khata card (cash, udhaar), on /m/[mid] only
   switchMode?: "m" | "demo";
 }) {
   const { data: m, error } = usePoll<M>(`/api/ui/m/${encodeURIComponent(mid)}`);
@@ -343,6 +345,7 @@ export function MeraHisaab({
   const statement = (
     <div className="flex min-w-0 flex-col gap-4">
       <MerchantSwitcher mid={mid} mode={switchMode} />
+      {khata}
       {qr && (
         <CollectPayment businessName={m.merchant.business_name} city={m.merchant.city} payments={m.payments}>
           {qr}
