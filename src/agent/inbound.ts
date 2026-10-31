@@ -3,6 +3,7 @@ import { fetchMedia, parseInbound, samePhone, sendText, sendVoice, uploadPublicM
 import { stt } from "@/channels/voice";
 import { approveAction, rejectAction } from "@/engine/actions";
 import * as merchants from "@/systems/merchants";
+import { activeDemoMid } from "@/lib/demo";
 import { converse, conversationFor, logMessage } from "./concierge";
 import { notifyDecision } from "./outreach";
 import { trace } from "./trace";
@@ -13,7 +14,10 @@ export async function handleInbound({ msg }: Inbound) {
   if (typeof msg?.from !== "string" || !msg.from) return;
   if (samePhone(msg.from, process.env.OPS_EMPLOYEE_PHONE)) return ops(msg.from, parseInbound(msg));
 
-  const merchant = (await merchants.list()).find((m) => samePhone(m.phone, msg.from));
+  // The demo phone speaks as whichever merchant the switcher picked; other merchants match by phone.
+  const merchant = samePhone(msg.from, process.env.DEMO_MERCHANT_PHONE)
+    ? await merchants.get(await activeDemoMid())
+    : (await merchants.list()).find((m) => samePhone(m.phone, msg.from));
   // The number is public, so strangers will message it.
   if (!merchant) return void (await sendText(msg.from, "Namaste! Yeh number abhi sirf registered Paytm merchants ke liye hai."));
 
@@ -48,11 +52,11 @@ export async function handleInbound({ msg }: Inbound) {
 
   // Voice in → voice note plus the same text (CLAUDE.md section 9). Only the demo merchant has a real phone.
   if (voice) {
-    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(merchant.phone, reply, lang(merchant.language)).catch((e) => ({ ok: false, error: (e as Error).message }));
+    const v: { ok: boolean; wamid?: string; error?: string; link?: string } = await sendVoice(msg.from, reply, lang(merchant.language)).catch((e) => ({ ok: false, error: (e as Error).message }));
     if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text: reply, media_url: v.link, wamid: v.wamid });
     else console.error("[wa] voice reply failed", v.error);
   }
-  const sent = await sendText(merchant.phone, reply);
+  const sent = await sendText(msg.from, reply);
   await logMessage({ conversation_id: conv.id, direction: "OUT", type: "TEXT", text: reply, wamid: sent.wamid });
 }
 

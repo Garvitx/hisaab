@@ -6,24 +6,27 @@ import { sendButtons, sendText, sendVoice } from "@/channels/whatsapp";
 import { conversationFor, logMessage, plain } from "./concierge";
 import { approvalMessage, merchantMessage } from "./notifier";
 import { trace } from "./trace";
+import { activeDemoMid } from "@/lib/demo";
 
 const lang = (l: string) => (l === "en" ? "en" : l === "hi" ? "hi" : "hinglish") as "hi" | "hinglish" | "en";
 
-// Only the demo merchant has a real phone; the other 29 are generated numbers that may
-// belong to strangers, so they get a dashboard-only mirror and never a real send.
+// Real sends only ever go to the demo phone: for the seeded demo merchant, and for whichever
+// merchant the switcher has the phone acting as. The other merchants' numbers are generated
+// and may belong to strangers, so they get a dashboard-only mirror.
 export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_id?: string } = {}) {
   const text = plain(raw);
   const conv = await conversationFor(m.id, "WA");
   let wamid: string | undefined;
-  if (m.is_demo) {
+  const phone = process.env.DEMO_MERCHANT_PHONE;
+  if (phone && (m.is_demo || m.id === (await activeDemoMid()))) {
     if (o.voice) {
-      const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(m.phone, text, lang(m.language)).catch(() => ({ ok: false }));
+      const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, lang(m.language)).catch(() => ({ ok: false }));
       if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text, media_url: v.link, wamid: v.wamid });
     }
-    wamid = (await sendText(m.phone, text)).wamid;
+    wamid = (await sendText(phone, text)).wamid;
   }
   await logMessage({ conversation_id: conv.id, direction: "OUT", type: "TEXT", text, wamid });
-  await trace({ kind: "MESSAGE", name: m.is_demo ? "whatsapp.sent" : "message.mirrored", case_id: o.case_id, conversation_id: conv.id, payload: { text, voice: !!o.voice } });
+  await trace({ kind: "MESSAGE", name: wamid ? "whatsapp.sent" : "message.mirrored", case_id: o.case_id, conversation_id: conv.id, payload: { text, voice: !!o.voice } });
 }
 
 const sumBy = (xs: { amount: number | null }[]) => xs.reduce((s, x) => s + (x.amount ?? 0), 0);

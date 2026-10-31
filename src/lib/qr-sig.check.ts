@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { qrSig, qrSigOk } from "./qr-sig.ts";
+const s = qrSig("MID-0007", "k");
+assert.equal(s.length, 16);
+assert.equal(qrSigOk("MID-0007", s, "k"), true);
+assert.equal(qrSigOk("MID-0008", s, "k"), false, "same sig on another mid must fail");
+assert.equal(qrSigOk("MID-0007", s, ""), false, "unset secret fails closed");
+assert.equal(qrSigOk("MID-0007", "short", "k"), false);
+assert.equal(qrSigOk("MID-0007", undefined, "k"), false);
+console.log("qr-sig ok");

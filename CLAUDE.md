@@ -447,3 +447,41 @@ hisaab/
 - Open the pay page on a phone, pay ₹100 as "Judge" with PIN 1111.
 - Row appears in settlement.payments, /m/MID-0001 announces it within 2 seconds.
 - Ask "Aaj ka hisaab batao" again on WhatsApp: the total now includes the ₹100.
+
+### 14b. Revision: static signed shop QRs and merchant switcher (supersedes the PAY_TOKEN link and per-request QR above)
+
+
+1. Merchant switcher on /m/[mid] and /demo
+   - Searchable dropdown of all 30 merchants (business name, city). Selecting one navigates to /m/<mid>.
+   - Keep the "WhatsApp acts as this merchant" toggle (hisaab.demo_settings.active_demo_mid) so the bot
+     answers for whichever merchant is selected.
+
+2. Static shop QR, one per merchant
+   - QR URL: APP_URL/pay/<mid>?s=<sig>, where sig = first 16 chars of HMAC-SHA256(mid, QR_SECRET). Add QR_SECRET to env.
+   - "Collect payment" button on /m/[mid] opens a large QR panel styled like a Paytm shop standee:
+     merchant business name, city, the QR, "Scan and pay with any name".
+   - The panel stays open and shows a live strip of the latest payments to this merchant (poll every 1.5 s).
+     Each new payment shows a toast and plays the Soundbox announcement "Paytm par ₹<amount> prapt hue".
+   - Also show the same QR on /ops/merchants/[mid].
+
+3. Pay page /pay/[mid]?s=<sig>
+   - Verify the signature on load. Invalid: show "This QR is not valid" and nothing else.
+   - Merchant name and city shown from merchants.merchants, never editable.
+   - Payer name (1 to 30 chars, quick picks "Judge", "Mentor", "Guest"), amount keypad ₹1 to ₹5,000,
+     PIN pad with "Demo PIN: 1111", demo banner on every screen. Success screen as before.
+   - Unlimited payments from the same QR, like a real shop.
+
+4. POST /api/pay
+   - Body: { mid, sig, payer_name, amount, pin }.
+   - Recompute the signature from mid and reject if it doesn't match. The merchant credited is always the
+     signed mid, never anything else from the request.
+   - Check pin === "1111" on the server, amount and name limits, one payment per IP every 5 s.
+   - Insert into settlement.payments for that merchant: status SUCCESS, txn_ref, payer_vpa <slug>@demo,
+     order_ref "DEMO-<short id>", payer_name.
+   - Watcher skips rules and hunter for these plain payments.
+
+Acceptance test, show me:
+- Open /m/MID-0007, click Collect payment, scan on a phone, pay ₹250 as "Judge".
+- The payment appears only in MID-0007's ledger, the panel announces it within 2 s.
+- Edit the URL on the phone to another MID with the same signature: page shows "not valid", API rejects it.
+- Switch WhatsApp to MID-0007 and ask "Aaj ka hisaab batao": total includes the ₹250.

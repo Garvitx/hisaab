@@ -593,3 +593,13 @@ model Injection {
   @@map("injections")
   @@schema("hisaab")
 }
+
+// Single row (id 1): which merchant the demo WhatsApp phone speaks as (merchant switcher on /m and /demo).
+model DemoSettings {
+  id              Int      @id @default(1)
+  active_demo_mid String   @default("MID-0001")
+  updated_at      DateTime @default(now()) @updatedAt
+
+  @@map("demo_settings")
+  @@schema("hisaab")
+}
