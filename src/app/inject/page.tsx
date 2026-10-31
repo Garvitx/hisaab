@@ -1,0 +1,39 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { timingSafeEqual } from "node:crypto";
+import { InjectPanel } from "@/components/inject-panel";
+import { Panel, Skeleton } from "@/components/bits";
+
+export const metadata: Metadata = { title: "Hisaab chaos panel", description: "Inject anomalies into the mock ledgers and watch Hisaab catch them." };
+
+// Same fail-closed check as POST /api/inject: no INJECT_TOKEN set means locked.
+const ok = (k: string | undefined, want = process.env.INJECT_TOKEN) =>
+  !!want && !!k && k.length === want.length && timingSafeEqual(Buffer.from(k), Buffer.from(want));
+
+async function Gate({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const k = (await searchParams).k;
+  const key = typeof k === "string" ? k : undefined;
+  if (ok(key)) return <InjectPanel k={key!} />;
+  return (
+    <div className="mx-auto max-w-md pt-10">
+      <Panel>
+        <div className="px-5 py-6">
+          <h1 className="text-2xl">This panel is locked</h1>
+          <p className="mt-2 text-ink-2">
+            The chaos panel needs the link with its key. Scan the QR code from the presenter, or ask them for the link.
+          </p>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+export default function Page({ searchParams }: PageProps<"/inject">) {
+  return (
+    <main className="w-full flex-1 px-4 py-6">
+      <Suspense fallback={<Skeleton rows={4} />}>
+        <Gate searchParams={searchParams} />
+      </Suspense>
+    </main>
+  );
+}

@@ -19,7 +19,8 @@ function mulberry32(a: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(20261031);
+const SEED = 20261031;
+let rand = mulberry32(SEED); // reset per call: the inject API reseeds inside one long-lived process
 const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
 const pick = <T>(xs: readonly T[]) => xs[Math.floor(rand() * xs.length)];
 const logUniform = (lo: number, hi: number) => Math.round(Math.exp(Math.log(lo) + rand() * Math.log(hi / lo)));
@@ -79,6 +80,7 @@ const PAYERS = ["rahul", "priya", "amit", "sneha", "vikas", "pooja", "rohit", "a
 const COURIERS = ["Delhivery", "Blue Dart", "Ekart", "Shadowfax"];
 
 export async function main() {
+  rand = mulberry32(SEED);
   const t0 = Date.now();
   const demoPhone = process.env.DEMO_MERCHANT_PHONE;
   if (!demoPhone?.startsWith("+")) throw new Error("DEMO_MERCHANT_PHONE must be set (E.164 with +)");

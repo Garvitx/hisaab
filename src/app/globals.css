@@ -1,15 +1,93 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: brand (user-supplied hex: navy #002E6E, sky #00BAF2)
+ * paper: oklch(96.6% 0.008 250) · accent: oklch(73.7% 0.145 228) · display: Anek Devanagari · body: Mukta
+ * nav: navy top bar, wordmark + role switcher · signature: the live case trace (rule vs hunter) · states: loading, empty, error, full
+ * axes: light/grotesk-sans/chromatic-sky · posture: committed (navy carries the bar and the scoreboard band) · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H3 E4 S4 R4 V3 · weakest: hierarchy on dense ops screens, carried by weight and the navy band instead of size
+ * waive 9 (white cards on a tinted page): the brief asks for white cards on a Paytm-like canvas
+ * waive 63 (pulse): the brief asks for a live "watching ledgers" pulse; it ticks once per real /api/watch heartbeat, never as decoration */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Hallmark tokens. --color-accent / --color-muted stay shadcn's; Hallmark's accent is --color-sky, its muted is --color-ink-3. */
+@theme static {
+  --color-paper: oklch(99.4% 0.002 250);
+  --color-paper-2: oklch(96.6% 0.008 250);
+  --color-paper-3: oklch(93.5% 0.012 250);
+  --color-ink: oklch(22% 0.02 258);
+  --color-ink-2: oklch(38% 0.022 258);
+  --color-ink-3: oklch(49% 0.02 258);
+  --color-rule: oklch(90.5% 0.01 250);
+  --color-navy: oklch(31.8% 0.121 258);
+  --color-navy-2: oklch(26.5% 0.105 258);
+  --color-navy-ink: oklch(97% 0.01 240);
+  --color-navy-ink-2: oklch(82% 0.04 240);
+  --color-sky: oklch(73.7% 0.145 228);
+  --color-sky-ink: oklch(31.8% 0.121 258);
+  --color-sky-text: oklch(50% 0.13 238);
+  --color-sky-wash: oklch(95.5% 0.03 228);
+  --color-focus: oklch(62% 0.17 235);
+  --color-good: oklch(48% 0.12 150);
+  --color-good-wash: oklch(95.5% 0.035 150);
+  --color-bad: oklch(52% 0.19 27);
+  --color-bad-wash: oklch(96% 0.025 27);
+  --color-warn: oklch(47% 0.11 65);
+  --color-warn-wash: oklch(96% 0.045 85);
+  --color-wa: oklch(94% 0.04 150);
+  --font-display: var(--font-anek), "Mukta", ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-mukta), ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px oklch(20% 0.03 258 / 0.06);
+}
+
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --z-sticky-nav: 300;
+
+  /* shadcn roles point at Hallmark tokens (export-formats.md § shadcn/ui) */
+  --background: var(--color-paper-2);
+  --foreground: var(--color-ink);
+  --card: var(--color-paper);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-paper);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-navy);
+  --primary-foreground: var(--color-navy-ink);
+  --secondary: var(--color-paper-3);
+  --secondary-foreground: var(--color-ink-2);
+  --muted: var(--color-paper-3);
+  --muted-foreground: var(--color-ink-3);
+  --accent: var(--color-paper-3);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-bad);
+  --border: var(--color-rule);
+  --input: var(--color-rule);
+  --ring: var(--color-focus);
+  --radius: 0.75rem;
+  --chart-1: var(--color-navy);
+  --chart-2: var(--color-sky);
+  --chart-3: var(--color-ink-3);
+  --chart-4: var(--color-good);
+  --chart-5: var(--color-warn);
+  --sidebar: var(--color-paper);
+  --sidebar-foreground: var(--color-ink);
+  --sidebar-primary: var(--color-navy);
+  --sidebar-primary-foreground: var(--color-navy-ink);
+  --sidebar-accent: var(--color-paper-3);
+  --sidebar-accent-foreground: var(--color-ink);
+  --sidebar-border: var(--color-rule);
+  --sidebar-ring: var(--color-focus);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,83 +126,88 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html,
   body {
-    @apply bg-background text-foreground;
+    overflow-x: clip;
   }
   html {
     @apply font-sans;
+    scrollbar-color: var(--color-ink-3) var(--color-paper-2);
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 1rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    caret-color: var(--color-sky-text);
+    font-synthesis: none;
+  }
+  ::selection {
+    background: var(--color-sky-wash);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button:not(:disabled):active,
+  a:active {
+    transform: translateY(1px);
+  }
+  .num {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* The heartbeat ring: one expanding ring per real /api/watch call (keyed remount), never a loop. */
+@keyframes hb-ring {
+  from { transform: scale(1); opacity: 0.55; }
+  to { transform: scale(2.6); opacity: 0; }
+}
+.hb-ring {
+  animation: hb-ring 900ms var(--ease-out) both;
+}
+/* A new row settles in once. */
+@keyframes row-in {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.row-in {
+  animation: row-in var(--dur-short) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -66,6 +66,7 @@ model Payment {
   amount      Int
   payer_vpa   String
   order_ref   String?
+  payer_name  String?
   status      PaymentStatus
   created_at  DateTime      @default(now())
 

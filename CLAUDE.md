@@ -399,3 +399,51 @@ hisaab/
 5. `/ops/merchants/[mid]`
 
 **Never cut:** injector, live detection, hunter, policy dial, Undo, WhatsApp voice in.
+
+---
+
+## 14. Audience pays the merchant (live demo feature)
+
+
+1. Pay page: /pay/[mid]?k=PAY_TOKEN (add PAY_TOKEN to env)
+   - Mobile-first, Paytm-style look (navy and sky blue, white cards).
+   - Header: merchant business name and city from merchants.merchants (read-only, not editable).
+   - Payer name: text input (1 to 30 chars) plus quick-pick chips: "Judge", "Mentor", "Guest".
+   - Amount: large keypad, whole rupees, ₹1 to ₹5,000.
+   - Pay button opens a 4-digit PIN pad with "Demo PIN: 1111" printed above it.
+   - Permanent banner on every screen: "Demo only. No real money. Never enter your real UPI PIN."
+   - Wrong PIN: shake animation and an inline error, no request sent twice.
+   - Success screen: green tick, amount, "Paid to <business name>", txn ref, time.
+
+2. POST /api/pay
+   - Validate the token, that the MID exists, amount 1 to 5000, and payer name; check pin === "1111" on the server.
+   - Rate limit: one payment per IP every 5 seconds.
+   - Insert into settlement.payments with status SUCCESS, a generated txn_ref, payer_vpa as <slugified-name>@demo,
+     order_ref "DEMO-<short id>", and a new nullable column payer_name (add a migration).
+   - Let the normal outbox trigger fire.
+
+3. Watcher: for outbox events that are only new SUCCESS payments with an order_ref, mark them processed and
+   skip the rules engine and the hunter. No case, no LLM call.
+
+4. Live payments on screen
+   - On /m/[mid] and /demo: a live payments feed (poll every 1.5 s) with payer name, amount and time.
+   - On each new payment: a toast ("Judge paid ₹100") and a Soundbox-style announcement played with Sarvam TTS in Hindi:
+     "Paytm par ₹<amount> prapt hue". Cache the audio per amount. Fall back to a short chime if TTS fails.
+   - Browsers block autoplay: add a one-time "Enable sound" button on /demo and /m/[mid].
+
+5. QR on the dashboard
+   - On /demo and /ops/merchants/[mid]: a large QR code for APP_URL/pay/<mid>?k=PAY_TOKEN, labelled
+     "Scan to pay <business name>". Use the qrcode npm package.
+
+6. New concierge tool: daily_summary(merchant_id, date)
+   - The engine computes: successful payment count and total today, pending and failed counts, biggest payment and payer
+     name, first and last payment time, today's scheduled deductions, expected next settlement (reuse forecast_settlement),
+     and the change versus yesterday at the same time.
+   - The concierge uses it for "Aaj ka hisaab batao", "daily summary", "aaj kitna aaya". Voice reply about 3 sentences,
+     full breakdown in the text message.
+
+**Acceptance test (end to end):**
+- Ask on WhatsApp "Aaj ka hisaab batao" and note the total.
+- Open the pay page on a phone, pay ₹100 as "Judge" with PIN 1111.
+- Row appears in settlement.payments, /m/MID-0001 announces it within 2 seconds.
+- Ask "Aaj ka hisaab batao" again on WhatsApp: the total now includes the ₹100.

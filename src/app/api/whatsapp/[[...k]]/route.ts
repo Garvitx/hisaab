@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
-import { messagesIn, sendText, requestOk, samePhone, type Inbound } from "@/channels/whatsapp";
+import { messagesIn, requestOk, type Inbound } from "@/channels/whatsapp";
+import { handleInbound } from "@/agent/inbound";
 import { db } from "@/lib/db";
 
 export const maxDuration = 60;
@@ -41,11 +42,14 @@ export async function POST(req: Request, ctx: RouteContext<"/api/whatsapp/[[...k
   });
   const isNew = new Set(fresh.map((r) => r.wamid));
 
-  // ponytail: echo only. The concierge replaces handle() once the agent lands.
   after(() =>
     Promise.all(
       messages.filter((m) => isNew.has(m.msg.id)).map(async (m) => {
-        await handle(m);
+        try {
+          await handleInbound(m);
+        } catch (err) {
+          console.error("[wa] handle failed", (err as Error)?.message || err);
+        }
         await db.waInbox.update({ where: { wamid: m.msg.id }, data: { processed_at: new Date() } });
       }),
     ),
@@ -53,26 +57,4 @@ export async function POST(req: Request, ctx: RouteContext<"/api/whatsapp/[[...k
 
   // Always 200 fast: a slow or non-200 ack makes Chakra retry the whole batch.
   return NextResponse.json({ ok: true });
-}
-
-async function handle({ msg, contactName }: Inbound) {
-  try {
-    if (typeof msg?.from !== "string" || !msg.from) return;
-    const who = samePhone(msg.from, process.env.OPS_EMPLOYEE_PHONE)
-      ? "ops"
-      : samePhone(msg.from, process.env.DEMO_MERCHANT_PHONE)
-        ? "merchant"
-        : null;
-
-    // The number is printed on webight.com, so strangers WILL message it.
-    if (!who) {
-      await sendText(msg.from, "Namaste! Yeh number abhi sirf registered Paytm merchants ke liye hai.");
-      return;
-    }
-
-    const text = (msg as { text?: { body?: string } }).text?.body;
-    await sendText(msg.from, `Hisaab echo (${who}${contactName ? `, ${contactName}` : ""}): ${text ?? `[${msg.type}]`}`);
-  } catch (err) {
-    console.error("[wa] handle failed", (err as Error)?.message || err);
-  }
 }

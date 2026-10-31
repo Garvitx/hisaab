@@ -1,0 +1,93 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: brand (navy #002E6E, sky #00BAF2) · signature: the PIN pad · states: locked, entry, in flight, wrong PIN, success · v2.0.0 */
+/* Pay page only. Every colour comes from the tokens in src/app/globals.css; motion is transform/opacity,
+ * and the global prefers-reduced-motion block flattens both animations. */
+
+.key {
+  min-height: 56px;
+  border-radius: 12px;
+  font-size: 1.625rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out);
+  touch-action: manipulation;
+}
+.key:hover:not(:disabled) { background: var(--color-paper-2); }
+.key:active:not(:disabled) { background: var(--color-sky-wash); }
+.key:disabled { color: var(--color-ink-3); }
+
+.btn {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  border-radius: 999px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  transition: background-color var(--dur-micro) var(--ease-out), opacity var(--dur-micro) var(--ease-out);
+  touch-action: manipulation;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.primary { background: var(--color-sky); color: var(--color-sky-ink); }
+.primary:hover:not(:disabled) { background: var(--color-navy); color: var(--color-navy-ink); }
+.ghost { color: var(--color-navy); }
+.ghost:hover:not(:disabled) { background: var(--color-paper-2); }
+
+.input {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--color-rule);
+  border-radius: 12px;
+  font-size: 1.0625rem; /* 16px+ so iOS does not zoom on focus */
+  color: var(--color-ink);
+  background: var(--color-paper);
+  transition: border-color var(--dur-micro) var(--ease-out);
+}
+.key:focus-visible, .btn:focus-visible, .chip:focus-visible, .input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.input::placeholder { color: var(--color-ink-3); }
+.input:hover { border-color: var(--color-ink-3); }
+
+.chip {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-rule);
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  color: var(--color-ink-2);
+  background: var(--color-paper);
+  transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
+}
+.chip:hover { border-color: var(--color-sky); }
+.chip[aria-pressed="true"] { background: var(--color-sky-wash); border-color: var(--color-sky); color: var(--color-sky-ink); }
+
+.dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid var(--color-ink-3);
+  transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
+}
+.dotOn { background: var(--color-navy); border-color: var(--color-navy); }
+.dotBad { border-color: var(--color-bad); }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+.shake { animation: shake 360ms var(--ease-out) both; }
+
+@keyframes pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.pop { animation: pop var(--dur-short) var(--ease-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shake, .pop { animation: none; }
+}
