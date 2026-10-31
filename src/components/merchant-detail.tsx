@@ -6,6 +6,7 @@ import type { MerchantDetail as D } from "@/app/api/ui/merchants/[mid]/route";
 import { usePoll } from "@/components/live";
 import { ago, day, dayYear, inr, month, type Json } from "@/components/format";
 import { CaseStatus, Empty, Failed, OriginBadge, Panel, Pill, Skeleton } from "@/components/bits";
+import { DeviceToggle } from "@/components/device-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type M = Json<D>;
@@ -160,12 +161,14 @@ export function MerchantDetail({ params, qr }: { params: Promise<{ mid: string }
 
           <TabsContent value="logistics">
             {m.devices.map((d) => {
-              const offline = Date.now() - new Date(d.last_seen_at).getTime() > 30 * 60 * 1000;
               return (
                 <div key={d.id}>
-                  <Sub>
-                    {d.model === "EDC" ? "EDC machine" : "Soundbox"} {d.serial}, {offline ? "offline" : "online"}, last seen {ago(d.last_seen_at)}
-                  </Sub>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule bg-paper-2 px-4 py-2 first:border-t-0">
+                    <span className="text-sm font-semibold text-ink-2">
+                      {d.model === "EDC" ? "EDC machine" : "Soundbox"} {d.serial}, last seen {ago(d.last_seen_at)}
+                    </span>
+                    <DeviceToggle id={d.id} model={d.model} lastSeen={d.last_seen_at} compact />
+                  </div>
                   <T head={["When", "Event", "By"]} rows={d.events.map((e) => [dayYear(e.at), e.type.replaceAll("_", " ").toLowerCase(), e.actor])} />
                   {d.replacement_requests.length > 0 && (
                     <T head={["Replacement booked", "Reason", "Status"]} rows={d.replacement_requests.map((r) => [ago(r.created_at), r.reason, r.status.toLowerCase()])} />

@@ -6,7 +6,7 @@ import { day, inr, month } from "@/components/format";
 // One stage of parallel reads: every round trip to Neon costs about half a second.
 async function load(mid: string) {
   const w = { merchant_id: mid };
-  const [merchant, settlements, credits, charges, disputes, loans, undone, messages, payments] = await Promise.all([
+  const [merchant, settlements, credits, charges, disputes, loans, undone, messages, payments, devices] = await Promise.all([
     db.merchant.findUnique({
       where: { id: mid },
       select: { id: true, business_name: true, owner_name: true, city: true, language: true },
@@ -29,6 +29,7 @@ async function load(mid: string) {
       take: 15,
       select: { id: true, amount: true, payer_name: true, payer_vpa: true, status: true, created_at: true },
     }),
+    db.device.findMany({ where: w, orderBy: { model: "desc" }, select: { id: true, model: true, last_seen_at: true } }),
   ]);
   if (!merchant) return null;
   const billed = charges.filter((c) => c.status === "BILLED");
@@ -87,6 +88,7 @@ async function load(mid: string) {
     })),
     credits: credits.map((c) => ({ ...c, undone: !!c.action_id && isUndone.has(c.action_id) })),
     warnings,
+    devices,
     messages: messages.reverse(),
     payments: payments.map(({ payer_name, payer_vpa, ...p }) => ({ ...p, payer: payer_name || payer_vpa })),
   };
