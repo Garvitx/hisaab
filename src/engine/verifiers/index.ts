@@ -7,6 +7,8 @@ import { zombie_loan } from "./zombie_loan";
 import { duplicate_deduction } from "./duplicate_deduction";
 import { deduction_without_source } from "./deduction_without_source";
 import { pickup_never_completed } from "./pickup_never_completed";
+import { payment_velocity } from "./payment_velocity";
+import { payments_stopped } from "./payments_stopped";
 
 export type { Ctx, Refs, Result, Verifier };
 
@@ -19,6 +21,8 @@ export const verifiers = {
   duplicate_deduction,
   deduction_without_source,
   pickup_never_completed,
+  payment_velocity,
+  payments_stopped,
 } satisfies Record<string, Verifier>;
 
 export type Check = keyof typeof verifiers;
@@ -35,6 +39,8 @@ export const REFS: Record<Check, string> = {
   duplicate_deduction: "{ source_ref } or { deduction_id }",
   deduction_without_source: "{ deduction_id }",
   pickup_never_completed: "{ device_id } or { subscription_id }",
+  payment_velocity: "{ merchant_id } or { payer_vpa, first_payment_id }",
+  payments_stopped: "{ merchant_id }",
 };
 
 export function verify(check: string, refs: unknown, ctx?: Ctx): Promise<Result> {

@@ -179,6 +179,7 @@ export function LabPanel({ k }: { k: string }) {
                   <span className="text-ink-3">Expected: </span>
                   <span className={cn("font-semibold", decoy ? "text-bad" : "text-ink")}>{s?.expected ?? "Not written yet"}</span>
                 </p>
+                {s?.note && <p className="mt-1 text-sm text-ink-2">{s.note}</p>}
                 {s?.ask && (
                   <p className="mt-1 text-sm text-ink-2">
                     Then ask on WhatsApp: <span className="font-semibold text-ink">&ldquo;{s.ask}&rdquo;</span>

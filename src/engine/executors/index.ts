@@ -12,12 +12,13 @@ import { contest_dispute } from "./contest_dispute";
 import { send_warning } from "./send_warning";
 import { book_replacement } from "./book_replacement";
 import { request_pickup } from "./request_pickup";
+import { alert_merchant } from "./alert_merchant";
 
 export type { ExecInput, Executor, Inverse, Step } from "./common";
 
 export const executors = {
   reverse_charge, reverse_deduction, close_subscription, schedule_pickup,
-  contest_dispute, send_warning, book_replacement, request_pickup,
+  contest_dispute, send_warning, book_replacement, request_pickup, alert_merchant,
 } satisfies Record<string, Executor>;
 
 export type ActionType = keyof typeof executors;

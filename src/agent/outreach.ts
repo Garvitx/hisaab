@@ -43,7 +43,14 @@ export async function notifyCase(case_id: string) {
 
   let outcome: Parameters<typeof merchantMessage>[0]["outcome"] = "fixed";
   let detail: string | undefined;
-  if (c.status === "AWAITING_MERCHANT") {
+  const checks = new Set(verified.map((f) => f.check));
+  if (checks.has("payment_velocity")) {
+    outcome = "warning";
+    detail = "One customer made many tiny payments (₹10 or less) within a few minutes. That is how fraudsters test a QR or a stolen card before a big payment. Tell the merchant: don't hand over goods against a big payment from this customer until it shows in their Paytm app; no money was lost.";
+  } else if (checks.has("payments_stopped")) {
+    outcome = "warning";
+    detail = "Payments to this shop suddenly stopped for over 2 hours although usually many come in by now. Tell the merchant to check their QR standee right away in case someone pasted another QR over it, and ask customers to confirm the shop name shown before paying; reply here to get a new standee.";
+  } else if (c.status === "AWAITING_MERCHANT") {
     outcome = "warning";
     detail = "Ask ONE clear yes/no question: did the Paytm courier actually take the device away? Explain that rent is still being charged.";
   } else if (c.status === "ESCALATED") outcome = "escalated";
@@ -51,10 +58,12 @@ export async function notifyCase(case_id: string) {
   else if (!fixed.length) outcome = "warning";
 
   const amounts: Record<string, number> = {};
+  const warnOnly = checks.has("payment_velocity") || checks.has("payments_stopped");
   if (fixed.length) amounts.refunded = sumBy(fixed);
   const pendingFindings = verified.filter((f) => pending.some((a) => a.finding_id === f.id));
   if (pendingFindings.length) amounts.under_review = sumBy(pendingFindings);
-  if (!fixed.length && !pendingFindings.length && verified.length) amounts.amount = sumBy(verified);
+  if (!fixed.length && !pendingFindings.length && verified.length && !warnOnly) amounts.amount = sumBy(verified);
+  if (checks.has("payment_velocity")) amounts.tiny_payments_total = sumBy(verified.filter((f) => f.check === "payment_velocity"));
 
   const text = await merchantMessage({ merchant: { name: m.owner_name, language: await chosen(m) }, found, outcome, amounts, detail });
   await say(m, text, { voice: true, case_id });

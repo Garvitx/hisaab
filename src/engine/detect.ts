@@ -24,6 +24,8 @@ export const DEFAULT_ACTIONS: Record<Check, string[]> = {
   duplicate_deduction: ["reverse_deduction"],
   deduction_without_source: ["reverse_deduction"],
   pickup_never_completed: [],
+  payment_velocity: ["alert_merchant"],
+  payments_stopped: ["alert_merchant"],
 };
 
 export type Hypothesis = { title: string; check: string; refs: unknown; why: string };

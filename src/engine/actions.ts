@@ -8,7 +8,7 @@ import { verify, type Refs } from "./verifiers";
 
 // close_loan has no executor: lending is always a human's call in the lending system.
 const TYPES = [...Object.keys(executors), "close_loan"];
-const KIND: Record<string, Kind> = { send_warning: "notify", book_replacement: "notify", schedule_pickup: "notify", request_pickup: "notify", close_loan: "lending" };
+const KIND: Record<string, Kind> = { alert_merchant: "notify", send_warning: "notify", book_replacement: "notify", schedule_pickup: "notify", request_pickup: "notify", close_loan: "lending" };
 const MONEY = new Set(["reverse_charge", "reverse_deduction", "close_subscription", "contest_dispute", "send_warning", "close_loan"]);
 
 // Higher wins; RESOLVED is lowest so any new pending work reopens the case.

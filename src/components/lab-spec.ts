@@ -11,6 +11,7 @@ export type Verdict = { state: "pass" | "fail" | "wait" | "manual"; label: strin
 
 export type Spec = {
   writes: string;
+  note?: string;
   expected: string;
   catcher: Catcher;
   ask?: string;
@@ -23,6 +24,18 @@ const DONE = new Set(["EXECUTED", "APPROVED"]);
 const pass = (label: string): Verdict => ({ state: "pass", label });
 const fail = (label: string): Verdict => ({ state: "fail", label });
 const wait = (label: string): Verdict => ({ state: "wait", label });
+
+// Passes on a finding with `check` plus an executed alert_merchant (a warning, no money moves).
+function alerted(check: string) {
+  return (r: Result): Verdict => {
+    const c = r.case!;
+    if (!c.findings.some((f) => f.check === check)) return fail(`No ${check} finding`);
+    const a = c.actions.filter((x) => x.type === "alert_merchant");
+    if (a.some((x) => DONE.has(x.status))) return pass("Merchant warned");
+    if (!a.length) return c.actions.length ? fail("No alert_merchant") : wait("Case open, deciding");
+    return a.some((x) => x.status === "PENDING" || x.status === "PROPOSED") ? wait("Alert waiting") : fail(`alert_merchant ${a[0].status.toLowerCase()}`);
+  };
+}
 
 // Passes on an executed action of `type` (and the demo amount when the target was the demo merchant).
 function executed(type: string, demoAmount: number | null, hunter = false) {
@@ -102,6 +115,19 @@ export const SPEC: Record<string, Spec> = {
       r.case!.findings.some((f) => f.origin === "HUNTER" && f.check === "pickup_never_completed")
         ? pass(r.case!.status === "AWAITING_MERCHANT" ? "Asking the merchant" : "Found by the hunter")
         : fail("Not found by the hunter"),
+  },
+  velocity_burst: {
+    writes: "8 payments of ₹1–₹5 from one unknown UPI id within 2 minutes",
+    expected: "Warning to merchant (no money moves): one payer, many tiny payments, possible card/UPI testing",
+    catcher: "RULE",
+    note: "Live version: pay ₹1 five times within 5 minutes from the shop QR under the same name (same name, same UPI id).",
+    grade: alerted("payment_velocity"),
+  },
+  qr_swapped: {
+    writes: "Deletes a busy shop's last 2.5 h of payments while other shops keep getting paid",
+    expected: "Warning to merchant to check the QR standee (no money moves)",
+    catcher: "RULE",
+    grade: alerted("payments_stopped"),
   },
   device_offline: {
     writes: "Soundbox last seen 3 hours ago",

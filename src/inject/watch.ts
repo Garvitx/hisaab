@@ -49,11 +49,13 @@ export async function drain(secret: string | null = null) {
     [...byMerchant].map(async ([merchant_id, evs]) => {
       evs.sort((a, b) => Number(a.id - b.id));
       try {
-        if (await onlyPlainPayments(evs)) return { merchant_id, case_id: null, findings: 0, skipped: "payments" };
+        // Plain customer payments skip the LLM hunter (no cost per sale) but still get the cheap rules,
+        // which is where the card-testing burst shows up.
+        const plain = await onlyPlainPayments(evs);
         const r = await detectMerchant(merchant_id, {
           firstEventAt: evs.reduce((m, e) => (e.created_at < m ? e.created_at : m), evs[0].created_at),
           events: evs.map(({ schema, table, row_id, op }) => ({ schema, table, row_id, op })),
-          hunt,
+          hunt: plain ? undefined : hunt,
         });
         if (r.case_id) {
           await stampInjection(merchant_id, r.case_id);

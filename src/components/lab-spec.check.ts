@@ -18,4 +18,9 @@ assert.equal(verdict("slow_day", { merchant_id: "MID-0009", created_at: t0, case
 assert.equal(verdict("slow_day", { merchant_id: "MID-0009", created_at: t0, case: null }, at(61)).state, "pass");
 assert.equal(verdict("slow_day", { merchant_id: "MID-0009", created_at: t0, case: kase([]) }, at(5)).state, "fail");
 assert.equal(verdict("device_offline", { merchant_id: "MID-0001", created_at: t0, case: null }).state, "manual");
+const alertCase = (check: string, status: string) => kase([{ type: "alert_merchant", amount: null, tier: "AUTO", status }], [{ origin: "RULE", check }]);
+assert.equal(verdict("velocity_burst", { merchant_id: "MID-0009", created_at: t0, case: alertCase("payment_velocity", "EXECUTED") }).state, "pass");
+assert.equal(verdict("velocity_burst", { merchant_id: "MID-0009", created_at: t0, case: alertCase("payments_stopped", "EXECUTED") }).state, "fail");
+assert.equal(verdict("qr_swapped", { merchant_id: "MID-0009", created_at: t0, case: alertCase("payments_stopped", "EXECUTED") }).state, "pass");
+assert.equal(verdict("qr_swapped", { merchant_id: "MID-0009", created_at: t0, case: alertCase("payments_stopped", "REJECTED") }).state, "fail");
 console.log("lab verdicts ok");
