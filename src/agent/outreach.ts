@@ -29,7 +29,7 @@ export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_i
   if (demo && (m.is_demo || m.id === (await activeDemoMid()))) to.add(demo);
   for (const phone of to) {
     if (o.voice) {
-      const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, ttsLang(conv.language ?? m.language)).catch(() => ({ ok: false }));
+      const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, ttsLang(conv.language ?? m.language), { case_id: o.case_id }).catch(() => ({ ok: false }));
       if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text, media_url: v.link, wamid: v.wamid });
     }
     const sent = await sendText(phone, text);
@@ -80,7 +80,7 @@ export async function notifyCase(case_id: string) {
   if (!fixed.length && !pendingFindings.length && verified.length && !warnOnly) amounts.amount = sumBy(verified);
   if (checks.has("payment_velocity")) amounts.tiny_payments_total = sumBy(verified.filter((f) => f.check === "payment_velocity"));
 
-  const text = await merchantMessage({ merchant: { name: m.owner_name, language: await chosen(m) }, found, outcome, amounts, detail });
+  const text = await merchantMessage({ merchant: { name: m.owner_name, language: await chosen(m) }, found, outcome, amounts, detail }, { role: "NOTIFIER", case_id });
   await say(m, text, { voice: true, case_id, topic: verified[0]?.check.replace(/_/g, " ") });
 
   for (const a of pending.filter((a) => a.tier === "APPROVAL")) await requestApproval(a.id);
@@ -97,7 +97,7 @@ export async function requestApproval(action_id: string) {
     fix: a.type.replace(/_/g, " "),
     amount: a.amount ?? 0,
     reason: await approvalReason(a),
-  });
+  }, { role: "NOTIFIER", case_id: a.case_id });
   const ops = process.env.OPS_EMPLOYEE_PHONE;
   let sent = false;
   if (ops) {
@@ -134,6 +134,6 @@ export async function notifyDecision(action_id: string) {
     outcome,
     amounts: a.amount ? { [outcome === "fixed" ? "refunded" : "amount"]: a.amount } : {},
     detail: outcome === "rejected" ? "A Paytm specialist reviewed it and could not approve the refund; they will follow up." : outcome === "undone" ? "The earlier refund was reversed after review." : undefined,
-  });
+  }, { role: "NOTIFIER", case_id: a.case_id });
   await say(m, text, { case_id: a.case_id });
 }

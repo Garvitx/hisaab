@@ -3,7 +3,7 @@
 // Ported from webight-ops/src/lib/whatsapp-intake.js, which runs on this number today.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { tts, type Lang } from "./voice.ts";
+import { tts, type Lang, type SpeechMeta } from "./voice.ts";
 
 const ver = () => process.env.WHATSAPP_API_VERSION || "v22.0";
 const TIMEOUT = 8_000;
@@ -220,9 +220,9 @@ export function sendTemplate(to: string, name: string, langCode: string, params:
   return send({ to: digits(to), type: "template", template: { name, language: { code: langCode }, ...(components.length ? { components } : {}) } });
 }
 
-export async function sendVoice(to: string, text: string, lang: Lang) {
+export async function sendVoice(to: string, text: string, lang: Lang, meta?: SpeechMeta) {
   try {
-    const link = await uploadPublicMedia(await tts(text, lang), "audio/ogg", `voice-${Date.now()}.ogg`);
+    const link = await uploadPublicMedia(await tts(text, lang, meta), "audio/ogg", `voice-${Date.now()}.ogg`);
     return { ...(await sendAudio(to, link)), link };
   } catch (err) {
     console.error("[wa] voice failed", (err as Error)?.message || err);

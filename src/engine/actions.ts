@@ -1,6 +1,7 @@
 // Propose -> policy -> execute / wait for approval / escalate. Amounts come from the finding, never a caller.
 import { db } from "@/lib/db";
 import { trace, timed } from "@/agent/trace";
+import { refreshCaseCost } from "@/lib/cost";
 import type { Action, CaseStatus, DecidedVia, Finding } from "@/generated/prisma/client";
 import { decide, type Kind } from "./policy";
 import { executors, runInverse, type ActionType, type Inverse } from "./executors";
@@ -16,14 +17,16 @@ const RANK: Record<CaseStatus, number> = { RESOLVED: 0, OPEN: 1, AWAITING_APPROV
 
 async function raiseCase(case_id: string, status: CaseStatus) {
   const c = await db.case.findUniqueOrThrow({ where: { id: case_id }, select: { status: true } });
-  if (RANK[status] > RANK[c.status]) await db.case.update({ where: { id: case_id }, data: { status, resolved_at: null } });
+  if (RANK[status] > RANK[c.status]) await db.case.update({ where: { id: case_id }, data: { status, resolved_at: null, resolution_ms: null } });
 }
 
 async function settle(case_id: string) {
-  const c = await db.case.findUniqueOrThrow({ where: { id: case_id }, select: { status: true } });
+  const c = await db.case.findUniqueOrThrow({ where: { id: case_id }, select: { status: true, opened_at: true } });
   if (c.status === "AWAITING_MERCHANT" || c.status === "RESOLVED") return;
   if (await db.action.count({ where: { case_id, status: { in: ["PENDING", "PROPOSED"] } } })) return;
-  await db.case.update({ where: { id: case_id }, data: { status: "RESOLVED", resolved_at: new Date() } });
+  const resolved_at = new Date();
+  await db.case.update({ where: { id: case_id }, data: { status: "RESOLVED", resolved_at, resolution_ms: resolved_at.getTime() - c.opened_at.getTime() } });
+  await refreshCaseCost(case_id);
   await trace({ kind: "ACTION", name: "case.resolved", case_id });
 }
 

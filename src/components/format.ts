@@ -35,6 +35,17 @@ export function seconds(ms: number | null | undefined) {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
+// AI spend is paise-scale: ₹0.42, ₹1.10, never rounded to ₹0.
+export const rupees2 = (n: number | null | undefined) => (n == null ? "–" : `₹${n.toFixed(2)}`);
+
+// A wall-clock span: "820 ms", "4.2 s", "3 m 10 s", "2 h 5 m".
+export function duration(ms: number | null | undefined) {
+  if (ms == null) return "–";
+  if (ms < 60_000) return seconds(ms);
+  const m = Math.floor(ms / 60_000);
+  return m < 60 ? `${m} m ${Math.floor((ms % 60_000) / 1000)} s` : `${Math.floor(m / 60)} h ${m % 60} m`;
+}
+
 // "2026-06" -> "June 2026"
 export function month(period: string | null | undefined) {
   if (!period) return "";

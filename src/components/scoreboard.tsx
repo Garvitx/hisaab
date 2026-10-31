@@ -1,8 +1,9 @@
 import type { Scoreboard as S } from "@/lib/scoreboard";
-import { count, inr, seconds } from "@/components/format";
+import type { AiStats } from "@/lib/cost";
+import { count, duration, inr, rupees2, seconds } from "@/components/format";
 
 // The navy band: the five numbers the demo is scored on.
-export function Scoreboard({ s }: { s: S | null }) {
+export function Scoreboard({ s }: { s: (S & { ai?: AiStats }) | null }) {
   const items: [string, string, string?][] = s
     ? [
         ["Anomalies injected", count(s.injected)],
@@ -25,6 +26,13 @@ export function Scoreboard({ s }: { s: S | null }) {
           </div>
         ))}
       </dl>
+      {s?.ai && (
+        <p className="num flex flex-wrap gap-x-6 gap-y-1 border-t border-navy-2 px-5 py-2 text-sm text-navy-ink-2">
+          <span>Average resolution <b className="font-semibold text-navy-ink">{duration(s.ai.avgResolutionMs)}</b></span>
+          <span>AI cost per case <b className="font-semibold text-navy-ink">{rupees2(s.ai.avgCostInr)}</b></span>
+          <span>AI spend today <b className="font-semibold text-navy-ink">{rupees2(s.ai.spendTodayInr)}</b></span>
+        </p>
+      )}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { db } from "@/lib/db";
+import { caseCost } from "@/lib/cost";
 
 async function load(id: string) {
   const c = await db.case.findUnique({
@@ -11,8 +12,8 @@ async function load(id: string) {
     },
   });
   if (!c) return null;
-  const merchant = await db.merchant.findUnique({ where: { id: c.merchant_id } });
-  return { ...c, merchant };
+  const [merchant, cost] = await Promise.all([db.merchant.findUnique({ where: { id: c.merchant_id } }), caseCost(id)]);
+  return { ...c, merchant, cost };
 }
 export type CaseDetail = NonNullable<Awaited<ReturnType<typeof load>>>;
 
