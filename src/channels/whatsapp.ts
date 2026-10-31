@@ -204,16 +204,16 @@ export function sendButtons(to: string, body: string, buttons: { id: string; tit
   });
 }
 
-export function sendTemplate(to: string, name: string, langCode: string, params: string[]) {
-  return send({
-    to: digits(to),
-    type: "template",
-    template: {
-      name,
-      language: { code: langCode },
-      ...(params.length ? { components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] } : {}),
-    },
-  });
+// Template params can't carry newlines, tabs or 4+ spaces (Meta rejects them), and stay short.
+const tparam = (t: string, max = 300) => t.replace(/\s+/g, " ").trim().slice(0, max) || "-";
+
+// quickReplies: payloads for the template's quick-reply buttons, in order; they come back as
+// msg.button.payload, which parseInbound turns into a button id.
+export function sendTemplate(to: string, name: string, langCode: string, params: string[], quickReplies: string[] = []) {
+  const components: unknown[] = [];
+  if (params.length) components.push({ type: "body", parameters: params.map((t) => ({ type: "text", text: tparam(t) })) });
+  quickReplies.forEach((payload, i) => components.push({ type: "button", sub_type: "quick_reply", index: String(i), parameters: [{ type: "payload", payload }] }));
+  return send({ to: digits(to), type: "template", template: { name, language: { code: langCode }, ...(components.length ? { components } : {}) } });
 }
 
 export async function sendVoice(to: string, text: string, lang: Lang) {

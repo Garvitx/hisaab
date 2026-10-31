@@ -12,7 +12,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "demo:reset": "tsx scripts/reset.ts",
     "inject": "tsx scripts/inject.ts",
-    "inject:decoy": "tsx scripts/inject.ts --decoy"
+    "inject:decoy": "tsx scripts/inject.ts --decoy",
+    "demo:script": "tsx scripts/demo-script.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

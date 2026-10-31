@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { messagesIn, requestOk, type Inbound } from "@/channels/whatsapp";
 import { handleInbound } from "@/agent/inbound";
+import { drain } from "@/inject/watch";
 import { db } from "@/lib/db";
 
 export const maxDuration = 60;
@@ -42,6 +43,9 @@ export async function POST(req: Request, ctx: RouteContext<"/api/whatsapp/[[...k
   });
   const isNew = new Set(fresh.map((r) => r.wamid));
 
+  // Backstop watcher: any WhatsApp traffic also drains ledger events nobody has looked at yet
+  // (e.g. when no dashboard is open), alongside handling the message.
+  after(() => drain().catch((e) => console.error("[wa] drain failed", (e as Error)?.message || e)));
   after(() =>
     Promise.all(
       messages.filter((m) => isNew.has(m.msg.id)).map(async (m) => {

@@ -2,7 +2,7 @@
 // hisaab.messages (the dashboard reads it) and traced.
 import { db } from "@/lib/db";
 import type { Merchant } from "@/generated/prisma/client";
-import { sendButtons, sendText, sendVoice } from "@/channels/whatsapp";
+import { sendButtons, sendTemplate, sendText, sendVoice } from "@/channels/whatsapp";
 import { conversationFor, logMessage, plain, ttsLang, waLang } from "./concierge";
 import { approvalMessage, merchantMessage } from "./notifier";
 import { trace } from "./trace";
@@ -12,10 +12,15 @@ import { phonesFor } from "@/lib/claims";
 // The language the merchant picked in chat, else their profile language.
 const chosen = async (m: Merchant) => waLang((await conversationFor(m.id, "WA")).language ?? m.language)!;
 
+// Outside a phone's 24 h window WhatsApp refuses free-form messages; the approved templates still go
+// through. Off until Meta approves them (WA_TEMPLATES=on), so a failed send stays a logged failure.
+const templatesOn = () => process.env.WA_TEMPLATES === "on";
+const templateLang = () => process.env.WA_TEMPLATE_LANG || "en";
+
 // Real sends only go to phones that opted in: the host's demo phone (for the seeded demo merchant
 // or whichever shop the switcher picked) and judges who claimed a shop and verified their number.
 // The seeded merchants' own numbers are generated and may belong to strangers: mirror only.
-export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_id?: string } = {}) {
+export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_id?: string; topic?: string } = {}) {
   const text = plain(raw);
   const conv = await conversationFor(m.id, "WA");
   let wamid: string | undefined;
@@ -27,7 +32,14 @@ export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_i
       const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, ttsLang(conv.language ?? m.language)).catch(() => ({ ok: false }));
       if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text, media_url: v.link, wamid: v.wamid });
     }
-    wamid = (await sendText(phone, text)).wamid ?? wamid;
+    const sent = await sendText(phone, text);
+    if (sent.ok) wamid = sent.wamid ?? wamid;
+    else if (templatesOn()) {
+      // hisaab_alert: "Namaste {{1}}, aapke Paytm Business account mein {{2}} ka ek update hai: {{3}}. ..."
+      const t = await sendTemplate(phone, "hisaab_alert", templateLang(), [m.owner_name.split(" ")[0], o.topic ?? "account", text]);
+      if (t.ok) wamid = t.wamid ?? wamid;
+      await trace({ kind: "MESSAGE", name: t.ok ? "template.sent" : "template.failed", case_id: o.case_id, payload: { template: "hisaab_alert", phone_tail: phone.slice(-4) } });
+    }
   }
   await logMessage({ conversation_id: conv.id, direction: "OUT", type: "TEXT", text, wamid });
   await trace({ kind: "MESSAGE", name: wamid ? "whatsapp.sent" : "message.mirrored", case_id: o.case_id, conversation_id: conv.id, payload: { text, voice: !!o.voice } });
@@ -69,7 +81,7 @@ export async function notifyCase(case_id: string) {
   if (checks.has("payment_velocity")) amounts.tiny_payments_total = sumBy(verified.filter((f) => f.check === "payment_velocity"));
 
   const text = await merchantMessage({ merchant: { name: m.owner_name, language: await chosen(m) }, found, outcome, amounts, detail });
-  await say(m, text, { voice: true, case_id });
+  await say(m, text, { voice: true, case_id, topic: verified[0]?.check.replace(/_/g, " ") });
 
   for (const a of pending.filter((a) => a.tier === "APPROVAL")) await requestApproval(a.id);
 }
@@ -87,8 +99,15 @@ export async function requestApproval(action_id: string) {
     reason: await approvalReason(a),
   });
   const ops = process.env.OPS_EMPLOYEE_PHONE;
-  if (ops) await sendButtons(ops, text, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }]);
-  await trace({ kind: "MESSAGE", name: "approval.requested", case_id: a.case_id, payload: { action_id: a.id, text, sent: !!ops } });
+  let sent = false;
+  if (ops) {
+    sent = (await sendButtons(ops, text, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }])).ok;
+    if (!sent && templatesOn()) {
+      // hisaab_approval: "Approval needed for {{1}} ({{2}}): {{3}}, amount {{4}}. Case {{5}}." + Approve / Reject quick replies.
+      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), [m.business_name, m.id, a.finding?.title ?? a.case.summary, `₹${(a.amount ?? 0).toLocaleString("en-IN")}`, a.case_id.slice(-6)], [`approve:${a.id}`, `reject:${a.id}`])).ok;
+    }
+  }
+  await trace({ kind: "MESSAGE", name: "approval.requested", case_id: a.case_id, payload: { action_id: a.id, text, sent } });
 }
 
 // The real policy reason, as recorded when the action was proposed (never a guess).
