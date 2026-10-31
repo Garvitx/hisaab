@@ -8,4 +8,9 @@ assert.equal(replyLanguage("Kal kitna aayega?", p), "Hinglish (Hindi in Latin le
 assert.equal(replyLanguage("Soundbox bol nahi raha", p), "Hinglish (Hindi in Latin letters)");
 assert.equal(replyLanguage("आज का हिसाब", { spoken: "en-IN", profile: "hinglish" }), "English");
 assert.equal(replyLanguage("आज का हिसाब", { spoken: "hi-IN", profile: "hinglish" }), "Hinglish (Hindi in Latin letters)");
+assert.match(replyLanguage("Mhara paisa kitte gaya bhai?", p), /^Haryanvi/);
+assert.match(replyLanguage("Kaal kitne rupaye aavenge, koni bataya kise ne", p), /^Haryanvi/);
+assert.match(replyLanguage("म्हारा साउंडबॉक्स कोनी बोल रया", { spoken: "hi-IN", profile: "hinglish" }), /^Haryanvi/);
+assert.equal(replyLanguage("Mera paisa kahan gaya?", p), "Hinglish (Hindi in Latin letters)");
+assert.equal(replyLanguage("I bought a ghana stick", p), "English", "ghana inside a word or English sentence");
 console.log("lang ok");

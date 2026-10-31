@@ -17,7 +17,16 @@ export const plain = (t: string) =>
 // Which language to answer this message in. Decided in code: the chat history pulls the model
 // toward whatever language came before. ponytail: word-list heuristic for Hinglish vs English.
 const HINGLISH = /\b(hai|hain|kya|kitna|kitne|kitni|mera|meri|mere|aaj|kal|ka|ki|ke|nahi|nahin|paisa|paise|batao|bataiye|aaya|aayega|hoon|karo|kar|raha|rahi|gaya|gayi|kyun|kab|kaise|bhai|ji|se|mein|ko|wala|wapas|kata|kat|bol|chahiye|hua|tha|thi)\b/i;
+// Haryanvi has no STT code of its own (it transcribes as Hindi), so it is spotted by its words, in either script.
+const HARYANVI = /(?:^|[^\p{L}])(mhara|mhari|mhare|mharo|thara|thari|thare|tharo|koni|ghana|ghani|ghane|kitte|kitti|tanne|manne|mhanne|thanne|ib|kad|kade|kyukar|chhora|chhori|hoya|aave|aavega|aavenge|rya|rahya|ke hoya|के होया|आवैगा|रया|म्हारा|म्हारी|म्हारे|थारा|थारी|थारे|कोनी|घणा|घणी|घणे|कित्ते|तन्नै|मन्नै|इब|कद|छोरा)(?=$|[^\p{L}])/giu;
+// One Haryanvi word in Devanagari is enough; in Latin script "ghana" alone could be English, so
+// it takes two Haryanvi words, or one alongside ordinary Hindi words.
+const isHaryanvi = (t: string) => {
+  const hits = t.match(HARYANVI)?.length ?? 0;
+  return /[\u0900-\u097F]/.test(t) ? hits >= 1 : hits >= 2 || (hits === 1 && HINGLISH.test(t));
+};
 export function replyLanguage(text: string, o: { spoken?: string; profile: string }) {
+  if (isHaryanvi(text)) return "Haryanvi (light and respectful, in the same script the merchant used)";
   if (o.spoken) return o.spoken.startsWith("en") ? "English" : o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
   if (/[\u0900-\u097F]/.test(text)) return "Hindi (Devanagari)";
   if (!/[a-z]/i.test(text)) return o.profile === "en" ? "English" : o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
