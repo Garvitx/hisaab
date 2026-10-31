@@ -1,18 +1,20 @@
-import { MODEL, claude, textOf } from "./llm";
+import { MODEL, create, textOf, wholeSentences } from "./llm";
 import { APPROVAL_SYSTEM, NOTIFIER_SYSTEM } from "./prompts";
 
 // Facts in, one message out. Amounts are passed pre-formatted so the model only copies them.
 export const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 async function write(system: string, facts: unknown) {
-  const res = await claude.messages.create({
+  const res = await create({
     model: MODEL.notify(),
-    // Devanagari costs several times the tokens of Hinglish; 1024 cut a 3-finding Hindi message mid-sentence.
     max_tokens: 4096,
+    // Writing a short message needs no deliberation: by default haiku-5-5 spent 816 tokens (mostly
+    // thinking) on a 500-char alert, which is what cut messages mid-word under the old 1024 limit.
+    output_config: { effort: "low" },
     system,
     messages: [{ role: "user", content: JSON.stringify(facts) }],
   });
-  return textOf(res);
+  return res.stop_reason === "max_tokens" ? wholeSentences(textOf(res)) : textOf(res);
 }
 
 export const merchantMessage = (facts: {

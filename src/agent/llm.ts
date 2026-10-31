@@ -11,6 +11,21 @@ export const MODEL = {
 const g = globalThis as unknown as { claude?: Anthropic };
 export const claude = (g.claude ??= new Anthropic());
 
+// messages.create, but a reply cut off by max_tokens is retried once with double the budget
+// (haiku-5-5 thinks inside the same budget, so a long Hinglish alert could stop mid-word).
+export async function create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
+  const res = await claude.messages.create(params);
+  if (res.stop_reason !== "max_tokens") return res;
+  console.warn("[llm] hit max_tokens, retrying", params.model, params.max_tokens, res.usage?.output_tokens);
+  return claude.messages.create({ ...params, max_tokens: params.max_tokens * 2 });
+}
+
+// Last resort for text that is still cut: end at the last full sentence, never mid-word.
+export function wholeSentences(t: string) {
+  const end = Math.max(...[".", "!", "?", "।", "\n"].map((c) => t.lastIndexOf(c)));
+  return end > t.length * 0.5 ? t.slice(0, end + 1).trim() : t.trim();
+}
+
 export const textOf = (m: Anthropic.Message) =>
   m.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -35,7 +50,7 @@ export async function runTools(opts: {
   const messages = [...opts.messages];
   for (let step = 0; step < (opts.maxSteps ?? 8); step++) {
     const t = performance.now();
-    const res = await claude.messages.create({
+    const res = await create({
       model: opts.model,
       max_tokens: 4096,
       cache_control: { type: "ephemeral" },
@@ -48,7 +63,7 @@ export async function runTools(opts: {
 
     const uses = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     const said = textOf(res);
-    if (!uses.length || res.stop_reason !== "tool_use") return { text: said, messages, stop: res.stop_reason };
+    if (!uses.length || res.stop_reason !== "tool_use") return { text: res.stop_reason === "max_tokens" ? wholeSentences(said) : said, messages, stop: res.stop_reason };
     if (said) await trace({ ...ids, kind: "THINK", name: "think", payload: { text: said }, ms });
 
     // Parallel tool calls: run together, answer in ONE user message.
@@ -74,7 +89,7 @@ export async function runTools(opts: {
 
 // One structured-output call: the API constrains the response to `schema`.
 export async function json<T>(opts: { model: string; system: string; user: string; schema: Record<string, unknown> }) {
-  const res = await claude.messages.create({
+  const res = await create({
     model: opts.model,
     max_tokens: 8192,
     system: opts.system,
@@ -82,5 +97,6 @@ export async function json<T>(opts: { model: string; system: string; user: strin
     output_config: { format: { type: "json_schema", schema: opts.schema } },
   });
   if (res.stop_reason === "refusal") throw new Error("model refused");
+  if (res.stop_reason === "max_tokens") throw new Error("hunter output cut off");
   return JSON.parse(textOf(res)) as T;
 }

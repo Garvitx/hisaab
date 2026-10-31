@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import type { Channel, Merchant, MessageType } from "@/generated/prisma/client";
-import { MODEL, claude, runTools, textOf } from "./llm";
+import { MODEL, create, runTools, textOf, wholeSentences } from "./llm";
 import { CONCIERGE_SYSTEM } from "./prompts";
 import { TOOLS, execTool } from "./tools";
 import { trace } from "./trace";
@@ -116,13 +116,14 @@ export async function converse(o: {
   const wantDeva = false; // never Devanagari on WhatsApp
   const hasDeva = /[\u0900-\u097F]/.test(reply);
   if (r.text && (wantDeva !== hasDeva || (o.language === "en" && HINGLISH.test(reply)))) {
-    const fix = await claude.messages.create({
+    const fix = await create({
       model: MODEL.converse(),
       max_tokens: 2048,
+      output_config: { effort: "low" }, // a straight rewrite; thinking would only eat the budget
       system: "Rewrite the message in the requested language and script. Keep every fact, number, ₹ amount, date and time exactly as written. Plain text, no markdown. Output only the rewritten message.",
       messages: [{ role: "user", content: `Language: ${LANGS[o.language ?? "hinglish"] ?? LANGS.hinglish}\n\nMessage:\n${reply}` }],
     });
-    reply = plain(textOf(fix)) || reply;
+    reply = plain(fix.stop_reason === "max_tokens" ? wholeSentences(textOf(fix)) : textOf(fix)) || reply;
     await trace({ kind: "THINK", name: "language.rewrite", conversation_id: o.conversation_id, payload: { to: o.language } });
   }
   await trace({ kind: "MESSAGE", name: "concierge.reply", conversation_id: o.conversation_id, payload: { text: reply, stop: r.stop } });

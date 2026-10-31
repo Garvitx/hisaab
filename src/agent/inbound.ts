@@ -70,7 +70,8 @@ export async function handleInbound({ msg }: Inbound) {
   if (picked) {
     language = picked;
     const held = conv.pending_text;
-    await db.conversation.update({ where: { id: conv.id }, data: { language, pending_text: null } });
+    if (conv.pending_voice) voice = true; // the held question was spoken, so answer it with a voice note too
+    await db.conversation.update({ where: { id: conv.id }, data: { language, pending_text: null, pending_voice: false } });
     if (!held) {
       const ok = PICKED[language] ?? PICKED.hinglish;
       const sent = await sendText(msg.from, ok);
@@ -78,7 +79,7 @@ export async function handleInbound({ msg }: Inbound) {
     }
     text = held; // now answer the question they asked first
   } else if (CHANGE.test(text) || !language) {
-    if (!language && text) await db.conversation.update({ where: { id: conv.id }, data: { pending_text: text } });
+    if (!language && text) await db.conversation.update({ where: { id: conv.id }, data: { pending_text: text, pending_voice: voice } });
     return askLanguage(msg.from, merchant.owner_name.split(" ")[0], conv.id);
   }
 
