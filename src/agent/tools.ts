@@ -32,6 +32,7 @@ export const TOOLS: Anthropic.Tool[] = [
   { name: "get_statement", description: "Settlement statement for a month (YYYY-MM) or one day (YYYY-MM-DD): totals, every deduction explained, and credits/refunds. Use for 'ye ₹135 kis cheez ka kata?' or 'mera paisa kahan gaya?'.", input_schema: obj({ period: { type: "string" } }, ["period"]) },
   { name: "compare_periods", description: "Compare payments and deductions between two date ranges, e.g. this week vs last week.", input_schema: obj({ a: obj({ from: day, to: day }, ["from", "to"]), b: obj({ from: day, to: day }, ["from", "to"]) }, ["a", "b"]) },
   { name: "get_device_health", description: "Each Soundbox/EDC: online or offline, when it was last seen, open replacement requests. Use for 'Soundbox bol nahi raha'.", input_schema: obj({}) },
+  { name: "device_control", description: "Remotely control the merchant's Soundbox/EDC: 'restart' (turns it off and back on in a few seconds; offer it when the Soundbox is silent, after asking 'Main remotely restart kar doon?'), 'off' (merchant asks to switch it off, or it was stolen: also call handoff_to_human), 'on'. Get device_id from get_device_health.", input_schema: obj({ device_id: { type: "string" }, action: { type: "string", enum: ["restart", "off", "on"] } }, ["device_id", "action"]) },
   { name: "book_replacement", description: "Book a replacement for a faulty device (no money moves). Only after the quick checks did not help.", input_schema: obj({ device_id: { type: "string" }, reason: { type: "string" } }, ["device_id", "reason"]) },
   { name: "request_pickup", description: "The merchant wants to return a device: schedule pickup and stop future rent from today. Returns the dues still scheduled.", input_schema: obj({ device_id: { type: "string" } }, ["device_id"]) },
   { name: "get_loans", description: "The merchant's Paytm loans: status, principal, outstanding, EMIs paid.", input_schema: obj({}) },
@@ -70,6 +71,11 @@ export async function execTool(name: string, input: Record<string, any>, ctx: Ct
     case "get_statement": return q.getStatement(mid, input.period);
     case "compare_periods": return q.comparePeriods(mid, input.a, input.b);
     case "get_device_health": return q.deviceHealth(mid);
+    case "device_control": {
+      const { powerDevice } = await import("./device-control");
+      const r = await powerDevice(input.device_id, input.action, { merchant_id: mid, by: "merchant-whatsapp", conversation_id: ctx.conversation_id });
+      return { ...r, note: r.action === "restart" ? "Restarted remotely and back online now. Tell them, and suggest a small test payment to hear it speak." : r.action === "off" ? "Switched off remotely." : "Switched on remotely." };
+    }
     case "get_loans": return q.loanSummary(mid);
 
     case "book_replacement":
