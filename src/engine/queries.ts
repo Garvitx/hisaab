@@ -145,6 +145,7 @@ export async function getStatement(merchant_id: string, period: string) {
 }
 
 export async function deviceHealth(merchant_id: string) {
+  await logistics.heartbeat(merchant_id);
   const now = Date.now();
   return {
     devices: (await logistics.devices(merchant_id)).map((d) => ({

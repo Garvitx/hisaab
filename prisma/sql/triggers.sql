@@ -8,6 +8,13 @@ DECLARE
   rec jsonb := to_jsonb(NEW);
   mid text;
 BEGIN
+  -- A device heartbeat (only last_seen_at moved) is not a ledger change; skip it so the
+  -- simulated pings don't send every merchant through detection.
+  IF TG_OP = 'UPDATE' AND TG_TABLE_SCHEMA = 'logistics' AND TG_TABLE_NAME = 'devices'
+     AND (to_jsonb(NEW) - 'last_seen_at') = (to_jsonb(OLD) - 'last_seen_at') THEN
+    RETURN NEW;
+  END IF;
+
   -- Two tables have no merchant_id of their own; resolve it inside their silo.
   mid := CASE TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME
     WHEN 'merchants.merchants' THEN rec->>'id'

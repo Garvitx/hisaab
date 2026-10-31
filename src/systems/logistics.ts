@@ -5,6 +5,12 @@ import type { DeviceEventType, ReplacementStatus } from "@/generated/prisma/clie
 export const OFFLINE_MS = 30 * 60_000;
 export const isOnline = (d: { last_seen_at: Date }, now = Date.now()) => now - d.last_seen_at.getTime() <= OFFLINE_MS;
 
+// Seeded devices never ping, so a healthy one would look offline 30 min after a reset.
+// Checking health stands in for the device's heartbeat: anything seen in the last 2 h pings
+// now, while a device that has really gone quiet (device_offline sets 3 h) stays offline.
+export const heartbeat = (merchant_id: string) =>
+  db.device.updateMany({ where: { merchant_id, last_seen_at: { gte: new Date(Date.now() - 2 * 3_600_000) } }, data: { last_seen_at: new Date() } });
+
 export const devices = (merchant_id: string) =>
   db.device.findMany({
     where: { merchant_id },
