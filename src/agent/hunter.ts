@@ -57,6 +57,7 @@ export async function hunt(snapshot: unknown, events: unknown[]): Promise<Hypoth
     system: HUNTER_SYSTEM,
     user: JSON.stringify({ changed: events, snapshot }),
     schema: SCHEMA,
+    meta: { role: "HUNTER" }, // the case doesn't exist yet; cost tracking attributes it afterwards
   });
   return out.hypotheses.filter((h) => CHECKS.includes(h.check));
 }

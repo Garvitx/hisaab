@@ -7,6 +7,12 @@ import { speakable } from "./numbers.ts";
 
 export type Lang = "hi" | "hinglish" | "en";
 
+// Which case / chat a speech call belongs to, for cost tracking.
+export type SpeechMeta = { case_id?: string | null; conversation_id?: string | null };
+
+// Phase 0 hook: implemented by the cost builder (speech_calls rows). Called for every Sarvam call.
+export async function recordSpeechCall(_kind: "STT" | "TTS", _amount: { seconds?: number; characters?: number }, _meta: SpeechMeta = {}): Promise<void> {}
+
 const SARVAM = "https://api.sarvam.ai";
 const TIMEOUT = 20_000;
 

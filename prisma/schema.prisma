@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["merchants", "settlement", "billing", "logistics", "disputes", "lending", "hisaab"]
+  schemas  = ["merchants", "settlement", "billing", "logistics", "disputes", "lending", "hisaab", "khata"]
 }
 
 // ---------- merchants ----------
@@ -140,6 +140,7 @@ enum ChargeStatus {
   BILLED
   DEDUCTED
   REVERSED
+  BLOCKED // stopped by a guard rule before it could be deducted
 
   @@schema("billing")
 }
@@ -239,7 +240,8 @@ model DeviceEvent {
   device_id String
   type      DeviceEventType
   at        DateTime
-  actor     String
+  actor     String // courier or field agent id
+  location  String? // warehouse code: NOIDA-2, GGN-1, DEL-3, GZB-1, FBD-1
   device    Device          @relation(fields: [device_id], references: [id], onDelete: Cascade)
 
   @@index([device_id, at])
@@ -478,6 +480,8 @@ model Case {
   opened_at    DateTime     @default(now())
   resolved_at  DateTime?
   detect_ms    Int?
+  resolution_ms Int? // opened -> resolved
+  ai_cost_inr  Float? // sum of this case's llm_calls + speech_calls
   findings     Finding[]
   actions      Action[]
   trace_events TraceEvent[]
@@ -622,6 +626,7 @@ model PhoneBinding {
   phone        String        @unique // digits only, e.g. 919812345678
   merchant_id  String
   code         String
+  display_name String? // WhatsApp profile name of the claimer
   status       BindingStatus @default(PENDING)
   created_at   DateTime      @default(now())
   activated_at DateTime?
@@ -629,4 +634,193 @@ model PhoneBinding {
   @@index([merchant_id, status])
   @@map("phone_bindings")
   @@schema("hisaab")
+}
+
+// ---------- cost & time tracking (hisaab) ----------
+
+enum LlmRole {
+  CONCIERGE
+  HUNTER
+  NOTIFIER
+  ROOT_CAUSE
+  KHATA
+
+  @@schema("hisaab")
+}
+
+model LlmCall {
+  id                 String   @id @default(cuid())
+  case_id            String?
+  conversation_id    String?
+  role               LlmRole
+  model              String
+  input_tokens       Int
+  output_tokens      Int
+  cache_read_tokens  Int      @default(0)
+  cache_write_tokens Int      @default(0)
+  cost_inr           Float
+  ms                 Int
+  created_at         DateTime @default(now())
+
+  @@index([case_id])
+  @@index([created_at])
+  @@map("llm_calls")
+  @@schema("hisaab")
+}
+
+enum SpeechKind {
+  STT
+  TTS
+
+  @@schema("hisaab")
+}
+
+model SpeechCall {
+  id              String     @id @default(cuid())
+  case_id         String?
+  conversation_id String?
+  kind            SpeechKind
+  seconds         Float? // STT audio length
+  characters      Int? // TTS text length
+  cost_inr        Float
+  created_at      DateTime   @default(now())
+
+  @@index([case_id])
+  @@index([created_at])
+  @@map("speech_calls")
+  @@schema("hisaab")
+}
+
+// ---------- root causes & guards (hisaab) ----------
+
+enum RootCauseStatus {
+  OPEN
+  GUARDED
+  CLOSED
+
+  @@schema("hisaab")
+}
+
+model RootCause {
+  id                 String          @id @default(cuid())
+  check              String
+  signature          Json // e.g. {"location":"NOIDA-2","since":"2026-06-12"}
+  affected_merchants Json // ["MID-0003", ...]
+  total_amount       Int
+  first_seen         DateTime
+  status             RootCauseStatus @default(OPEN)
+  summary            String?
+  ticket_md          String?
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @default(now()) @updatedAt
+  guards             GuardRule[]
+
+  @@map("root_causes")
+  @@schema("hisaab")
+}
+
+model GuardRule {
+  id            String       @id @default(cuid())
+  template      String // pause_rent_after_warehouse_receipt | block_duplicate_deduction | block_charge_without_delivery
+  params        Json
+  root_cause_id String?
+  enabled       Boolean      @default(false)
+  approved_by   String?
+  blocked_count Int          @default(0)
+  created_at    DateTime     @default(now())
+  root_cause    RootCause?   @relation(fields: [root_cause_id], references: [id], onDelete: SetNull)
+  events        GuardEvent[]
+
+  @@map("guard_rules")
+  @@schema("hisaab")
+}
+
+model GuardEvent {
+  id             String    @id @default(cuid())
+  guard_rule_id  String
+  merchant_id    String
+  blocked_record Json
+  created_at     DateTime  @default(now())
+  guard_rule     GuardRule @relation(fields: [guard_rule_id], references: [id], onDelete: Cascade)
+
+  @@index([guard_rule_id])
+  @@map("guard_events")
+  @@schema("hisaab")
+}
+
+// ---------- khata: cash, expenses, udhaar (owned by Hisaab, separate from the Paytm ledgers) ----------
+// Self-reported. Never read by reconcile, verifiers, policy or executors.
+
+enum KhataKind {
+  CASH_SALE
+  CASH_EXPENSE
+  UDHAAR_GIVEN
+  UDHAAR_TAKEN
+
+  @@schema("khata")
+}
+
+enum CounterpartyType {
+  CUSTOMER
+  MERCHANT
+  NONE
+
+  @@schema("khata")
+}
+
+enum KhataSource {
+  NFC_VOICE
+  WA_VOICE
+  WA_TEXT
+  DASHBOARD
+
+  @@schema("khata")
+}
+
+enum KhataStatus {
+  DRAFT
+  PENDING_CONFIRMATION
+  CONFIRMED
+  DISPUTED
+  DELETED
+
+  @@schema("khata")
+}
+
+model KhataEntry {
+  id                 String            @id @default(cuid())
+  merchant_id        String
+  kind               KhataKind
+  amount             Int
+  counterparty_type  CounterpartyType  @default(NONE)
+  counterparty_name  String?
+  counterparty_phone String?
+  counterparty_mid   String?
+  note               String?
+  source             KhataSource
+  transcript         String?
+  status             KhataStatus       @default(DRAFT)
+  linked_entry_id    String? // the mirror entry in the other merchant's khata
+  settled_amount     Int               @default(0) // udhaar repaid so far (sum of settlements)
+  entry_date         DateTime          @db.Date
+  created_at         DateTime          @default(now())
+  settlements        KhataSettlement[]
+
+  @@index([merchant_id, entry_date])
+  @@index([counterparty_mid])
+  @@map("entries")
+  @@schema("khata")
+}
+
+model KhataSettlement {
+  id         String     @id @default(cuid())
+  entry_id   String
+  payment_id String // settlement.payments.id
+  amount     Int
+  created_at DateTime   @default(now())
+  entry      KhataEntry @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+
+  @@index([entry_id])
+  @@map("settlements")
+  @@schema("khata")
 }

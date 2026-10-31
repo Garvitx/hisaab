@@ -1,10 +1,10 @@
-import { MODEL, create, textOf, wholeSentences } from "./llm";
+import { MODEL, create, textOf, wholeSentences, type CallMeta } from "./llm";
 import { APPROVAL_SYSTEM, NOTIFIER_SYSTEM } from "./prompts";
 
 // Facts in, one message out. Amounts are passed pre-formatted so the model only copies them.
 export const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
-async function write(system: string, facts: unknown) {
+async function write(system: string, facts: unknown, meta: CallMeta = { role: "NOTIFIER" }) {
   const res = await create({
     model: MODEL.notify(),
     max_tokens: 4096,
@@ -13,7 +13,7 @@ async function write(system: string, facts: unknown) {
     output_config: { effort: "low" },
     system,
     messages: [{ role: "user", content: JSON.stringify(facts) }],
-  });
+  }, meta);
   return res.stop_reason === "max_tokens" ? wholeSentences(textOf(res)) : textOf(res);
 }
 

@@ -1,6 +1,7 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { NextResponse, after } from "next/server";
 import { drain } from "@/inject/watch";
+import { onPayment } from "@/agent/payments";
 import { db } from "@/lib/db";
 import { qrSigOk } from "@/lib/qr-sig";
 import * as merchants from "@/systems/merchants";
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
     if (idem) done.set(idem, out);
     // Run the cheap rules now (card-testing bursts) even when no dashboard is open.
     after(() => drain().catch((e) => console.error("[pay] drain failed", (e as Error)?.message || e)));
+    after(() => onPayment(p.id).catch((e) => console.error("[pay] notify failed", (e as Error)?.message || e)));
     return NextResponse.json(out);
   } catch (err) {
     lastPay.delete(key);

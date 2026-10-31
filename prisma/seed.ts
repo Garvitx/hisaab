@@ -212,6 +212,10 @@ export async function main() {
     insert(db.loan, loans).then(() => insert(db.loanPayment, loanPayments)),
     db.policy.upsert({ where: { id: 1 }, create: { id: 1, auto_limit: 1000, approval_limit: 5000, lending_always_escalate: true }, update: { auto_limit: 1000, approval_limit: 5000, lending_always_escalate: true } }),
   ]);
+  // Khata (cash / udhaar) is Hisaab's own schema, seeded by its module.
+  const { seedKhata } = await import("../src/khata/seed");
+  await seedKhata();
+
   // The triggers logged every seed row; the watcher must start from zero.
   await db.$executeRawUnsafe("TRUNCATE hisaab.outbox_events RESTART IDENTITY");
 

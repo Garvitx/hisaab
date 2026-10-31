@@ -1,5 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { trace } from "./trace";
+import type { LlmRole } from "@/generated/prisma/client";
+
+// Who made an AI call and for which case / chat, so cost tracking can attribute it.
+export type CallMeta = { role: LlmRole; case_id?: string | null; conversation_id?: string | null };
+
+// Phase 0 hook: cost tracking (llm_calls rows, pricing) is implemented by the cost builder.
+// Every Anthropic call in the app goes through create(), so this sees all of them.
+export async function recordLlmCall(_meta: CallMeta, _model: string, _res: Anthropic.Message, _ms: number): Promise<void> {}
 
 // Per-role models come from env so they can be swapped on the day (CLAUDE.md section 2).
 export const MODEL = {
@@ -13,11 +21,16 @@ export const claude = (g.claude ??= new Anthropic());
 
 // messages.create, but a reply cut off by max_tokens is retried once with double the budget
 // (haiku-5-5 thinks inside the same budget, so a long Hinglish alert could stop mid-word).
-export async function create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> {
-  const res = await claude.messages.create(params);
+export async function create(params: Anthropic.MessageCreateParamsNonStreaming, meta: CallMeta): Promise<Anthropic.Message> {
+  let t = performance.now();
+  let res = await claude.messages.create(params);
+  await recordLlmCall(meta, params.model, res, Math.round(performance.now() - t)).catch((e) => console.error("[llm] record failed", (e as Error)?.message));
   if (res.stop_reason !== "max_tokens") return res;
   console.warn("[llm] hit max_tokens, retrying", params.model, params.max_tokens, res.usage?.output_tokens);
-  return claude.messages.create({ ...params, max_tokens: params.max_tokens * 2 });
+  t = performance.now();
+  res = await claude.messages.create({ ...params, max_tokens: params.max_tokens * 2 });
+  await recordLlmCall(meta, params.model, res, Math.round(performance.now() - t)).catch((e) => console.error("[llm] record failed", (e as Error)?.message));
+  return res;
 }
 
 // Last resort for text that is still cut: end at the last full sentence, never mid-word.
@@ -45,6 +58,7 @@ export async function runTools(opts: {
   exec: ToolExec;
   maxSteps?: number;
   ids: { case_id?: string | null; conversation_id?: string | null };
+  role?: LlmRole;
 }) {
   const { ids } = opts;
   const messages = [...opts.messages];
@@ -57,7 +71,7 @@ export async function runTools(opts: {
       system: opts.system,
       tools: opts.tools,
       messages,
-    });
+    }, { role: opts.role ?? "CONCIERGE", case_id: ids.case_id, conversation_id: ids.conversation_id });
     const ms = Math.round(performance.now() - t);
     messages.push({ role: "assistant", content: res.content });
 
@@ -88,14 +102,14 @@ export async function runTools(opts: {
 }
 
 // One structured-output call: the API constrains the response to `schema`.
-export async function json<T>(opts: { model: string; system: string; user: string; schema: Record<string, unknown> }) {
+export async function json<T>(opts: { model: string; system: string; user: string; schema: Record<string, unknown>; meta: CallMeta }) {
   const res = await create({
     model: opts.model,
     max_tokens: 8192,
     system: opts.system,
     messages: [{ role: "user", content: opts.user }],
     output_config: { format: { type: "json_schema", schema: opts.schema } },
-  });
+  }, opts.meta);
   if (res.stop_reason === "refusal") throw new Error("model refused");
   if (res.stop_reason === "max_tokens") throw new Error("hunter output cut off");
   return JSON.parse(textOf(res)) as T;

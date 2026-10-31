@@ -123,7 +123,7 @@ export async function converse(o: {
       output_config: { effort: "low" }, // a straight rewrite; thinking would only eat the budget
       system: "Rewrite the message in the requested language and script. Keep every fact, number, ₹ amount, date and time exactly as written. Plain text, no markdown. Output only the rewritten message.",
       messages: [{ role: "user", content: `Language: ${LANGS[o.language ?? "hinglish"] ?? LANGS.hinglish}\n\nMessage:\n${reply}` }],
-    });
+    }, { role: "CONCIERGE", conversation_id: o.conversation_id });
     reply = plain(fix.stop_reason === "max_tokens" ? wholeSentences(textOf(fix)) : textOf(fix)) || reply;
     await trace({ kind: "THINK", name: "language.rewrite", conversation_id: o.conversation_id, payload: { to: o.language } });
   }

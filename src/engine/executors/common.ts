@@ -4,7 +4,7 @@ export type ExecInput = { action_id: string; merchant_id: string; amount: number
 
 // Undo is data, not code: each executor returns the steps that put the ledger back.
 export type Step =
-  | { op: "charge"; id: string; status: "BILLED" | "DEDUCTED" | "REVERSED"; notice_sent_at: string | null }
+  | { op: "charge"; id: string; status: "BILLED" | "DEDUCTED" | "REVERSED" | "BLOCKED"; notice_sent_at: string | null }
   | { op: "credit.delete"; id: string }
   | { op: "subscription"; id: string; status: "ACTIVE" | "CLOSED"; closed_at: string | null }
   | { op: "event.delete"; id: string }
