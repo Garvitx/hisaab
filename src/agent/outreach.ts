@@ -35,8 +35,8 @@ export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_i
     const sent = await sendText(phone, text);
     if (sent.ok) wamid = sent.wamid ?? wamid;
     else if (templatesOn()) {
-      // hisaab_alert: "Namaste {{1}}, aapke Paytm Business account mein {{2}} ka ek update hai: {{3}}. ..."
-      const t = await sendTemplate(phone, "hisaab_alert", templateLang(), [m.owner_name.split(" ")[0], o.topic ?? "account", text]);
+      // hisaab_alert: "Namaste {{name}}, aapke Paytm Business account mein {{topic}} ka ek update hai: {{details}}. ..."
+      const t = await sendTemplate(phone, "hisaab_alert", templateLang(), { name: m.owner_name.split(" ")[0], topic: o.topic ?? "account", details: text });
       if (t.ok) wamid = t.wamid ?? wamid;
       await trace({ kind: "MESSAGE", name: t.ok ? "template.sent" : "template.failed", case_id: o.case_id, payload: { template: "hisaab_alert", phone_tail: phone.slice(-4) } });
     }
@@ -103,8 +103,8 @@ export async function requestApproval(action_id: string) {
   if (ops) {
     sent = (await sendButtons(ops, text, [{ id: `approve:${a.id}`, title: "Approve" }, { id: `reject:${a.id}`, title: "Reject" }])).ok;
     if (!sent && templatesOn()) {
-      // hisaab_approval: "Approval needed for {{1}} ({{2}}): {{3}}, amount {{4}}. Case {{5}}." + Approve / Reject quick replies.
-      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), [m.business_name, m.id, a.finding?.title ?? a.case.summary, `₹${(a.amount ?? 0).toLocaleString("en-IN")}`, a.case_id.slice(-6)], [`approve:${a.id}`, `reject:${a.id}`])).ok;
+      // hisaab_approval: "Approval needed for {{business}} ({{mid}}): {{issue}}, amount {{amount}}. Case {{case_ref}}." + Approve / Reject.
+      sent = (await sendTemplate(ops, "hisaab_approval", templateLang(), { business: m.business_name, mid: m.id, issue: a.finding?.title ?? a.case.summary, amount: `Rs ${(a.amount ?? 0).toLocaleString("en-IN")}`, case_ref: a.case_id.slice(-6) }, [`approve:${a.id}`, `reject:${a.id}`])).ok;
     }
   }
   await trace({ kind: "MESSAGE", name: "approval.requested", case_id: a.case_id, payload: { action_id: a.id, text, sent } });

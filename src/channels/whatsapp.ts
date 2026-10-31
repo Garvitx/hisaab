@@ -207,11 +207,15 @@ export function sendButtons(to: string, body: string, buttons: { id: string; tit
 // Template params can't carry newlines, tabs or 4+ spaces (Meta rejects them), and stay short.
 const tparam = (t: string, max = 300) => t.replace(/\s+/g, " ").trim().slice(0, max) || "-";
 
-// quickReplies: payloads for the template's quick-reply buttons, in order; they come back as
-// msg.button.payload, which parseInbound turns into a button id.
-export function sendTemplate(to: string, name: string, langCode: string, params: string[], quickReplies: string[] = []) {
+// params: an object for templates with NAMED variables ({{name}}, Chakra's format), or a list for
+// positional ones ({{1}}). quickReplies: payloads for the quick-reply buttons, in order; they come
+// back as msg.button.payload, which parseInbound turns into a button id.
+export function sendTemplate(to: string, name: string, langCode: string, params: Record<string, string> | string[], quickReplies: string[] = []) {
   const components: unknown[] = [];
-  if (params.length) components.push({ type: "body", parameters: params.map((t) => ({ type: "text", text: tparam(t) })) });
+  const body = Array.isArray(params)
+    ? params.map((t) => ({ type: "text", text: tparam(t) }))
+    : Object.entries(params).map(([parameter_name, t]) => ({ type: "text", parameter_name, text: tparam(t) }));
+  if (body.length) components.push({ type: "body", parameters: body });
   quickReplies.forEach((payload, i) => components.push({ type: "button", sub_type: "quick_reply", index: String(i), parameters: [{ type: "payload", payload }] }));
   return send({ to: digits(to), type: "template", template: { name, language: { code: langCode }, ...(components.length ? { components } : {}) } });
 }
