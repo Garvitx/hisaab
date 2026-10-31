@@ -10,7 +10,7 @@ import { Empty, Failed, Panel, Skeleton } from "@/components/bits";
 import { Button } from "@/components/ui/button";
 import { MerchantSwitcher } from "@/components/merchant-switcher";
 import { CollectPayment } from "@/components/collect-payment";
-import { DeviceToggle } from "@/components/device-toggle";
+import { DeviceList } from "@/components/device-toggle";
 import { cn } from "@/lib/utils";
 
 type M = Json<D>;
@@ -329,10 +329,8 @@ export function MeraHisaab({
           <h1 className={compact ? "text-xl" : "text-2xl"}>Mera Hisaab</h1>
           <p className="text-sm text-ink-3">{m.merchant.business_name}, {m.merchant.city}</p>
           {m.devices.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {m.devices.map((d) => (
-                <DeviceToggle key={d.id} id={d.id} model={d.model} lastSeen={d.last_seen_at} />
-              ))}
+            <div className="mt-3">
+              <DeviceList devices={m.devices} />
             </div>
           )}
         </div>

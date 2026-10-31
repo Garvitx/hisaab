@@ -29,7 +29,11 @@ async function load(mid: string) {
       take: 15,
       select: { id: true, amount: true, payer_name: true, payer_vpa: true, status: true, created_at: true },
     }),
-    db.device.findMany({ where: w, orderBy: { model: "desc" }, select: { id: true, model: true, last_seen_at: true } }),
+    db.device.findMany({
+      where: w,
+      orderBy: { model: "desc" },
+      select: { id: true, serial: true, model: true, last_seen_at: true, events: { select: { type: true, at: true }, orderBy: { at: "asc" } } },
+    }),
   ]);
   if (!merchant) return null;
   const billed = charges.filter((c) => c.status === "BILLED");

@@ -23,7 +23,10 @@ export async function drain(secret: string | null = null) {
       WHERE processed_at IS NULL AND merchant_id IS NOT NULL AND "schema" <> 'hisaab'
         AND NOT ("schema" = 'merchants' AND "table" = 'merchants')
       GROUP BY merchant_id
-      HAVING max(created_at) <= now() - interval '1.5 seconds'
+      -- A customer payment lands whole in one insert, so it needs no settle time; debouncing on it
+      -- would starve a busy shop (a queue of payers keeps it from ever going quiet for 1.5 s).
+      HAVING coalesce(max(created_at) FILTER (WHERE NOT ("schema" = 'settlement' AND "table" = 'payments' AND op = 'INSERT')), '-infinity')
+             <= now() - interval '1.5 seconds'
     ), taken AS (
       SELECT id FROM hisaab.outbox_events
       WHERE processed_at IS NULL

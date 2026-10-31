@@ -45,7 +45,7 @@ export function PayFlow({ mid, sig, businessName, city }: Props) {
         method: "POST",
         headers: { "content-type": "application/json" },
         // One idempotency key per PIN attempt: a replay of this attempt returns the same payment.
-        body: JSON.stringify({ mid, sig, payer_name: name.trim(), amount: n, pin, idem: crypto.randomUUID() }),
+        body: JSON.stringify({ mid, sig, payer_name: name.trim(), amount: n, pin, idem: crypto.randomUUID(), device: deviceId() }),
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -254,4 +254,17 @@ function Keypad({ onKey, disabled, last }: { onKey: (k: string) => void; disable
       {last ? key(last.key, last.label, <Check aria-hidden className="mx-auto size-7" strokeWidth={3} />, "pay-key-ok", !last.ok) : del}
     </div>
   );
+}
+
+// One random id per phone: venue Wi-Fi puts a whole room behind one IP, so the server
+// rate-limits per device instead. Private mode or blocked storage just gets a fresh id.
+function deviceId() {
+  try {
+    const k = "hisaab-pay-device";
+    const v = localStorage.getItem(k) ?? crypto.randomUUID();
+    localStorage.setItem(k, v);
+    return v;
+  } catch {
+    return crypto.randomUUID();
+  }
 }

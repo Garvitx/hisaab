@@ -6,7 +6,7 @@ import type { MerchantDetail as D } from "@/app/api/ui/merchants/[mid]/route";
 import { usePoll } from "@/components/live";
 import { ago, day, dayYear, inr, month, type Json } from "@/components/format";
 import { CaseStatus, Empty, Failed, OriginBadge, Panel, Pill, Skeleton } from "@/components/bits";
-import { DeviceToggle } from "@/components/device-toggle";
+import { DeviceToggle, deviceName, deviceState } from "@/components/device-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type M = Json<D>;
@@ -165,9 +165,15 @@ export function MerchantDetail({ params, qr }: { params: Promise<{ mid: string }
                 <div key={d.id}>
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule bg-paper-2 px-4 py-2 first:border-t-0">
                     <span className="text-sm font-semibold text-ink-2">
-                      {d.model === "EDC" ? "EDC machine" : "Soundbox"} {d.serial}, last seen {ago(d.last_seen_at)}
+                      {deviceName(d)}, serial {d.serial}, last seen {ago(d.last_seen_at)}
                     </span>
-                    <DeviceToggle id={d.id} model={d.model} lastSeen={d.last_seen_at} compact />
+                    {deviceState(d.events) === "in_shop" ? (
+                      <DeviceToggle id={d.id} model={d.model} name={deviceName(d)} lastSeen={d.last_seen_at} compact />
+                    ) : (
+                      <span className="inline-flex h-7 items-center rounded-full bg-paper-3 px-2.5 text-sm text-ink-3">
+                        {deviceState(d.events) === "returned" ? "Returned" : "Never delivered"}
+                      </span>
+                    )}
                   </div>
                   <T head={["When", "Event", "By"]} rows={d.events.map((e) => [dayYear(e.at), e.type.replaceAll("_", " ").toLowerCase(), e.actor])} />
                   {d.replacement_requests.length > 0 && (

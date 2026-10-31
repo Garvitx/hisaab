@@ -11,8 +11,12 @@ import * as merchants from "@/systems/merchants";
 // payment in the same 5 s, and a replayed idem key landing on another instance would insert again).
 // Move both into a Postgres table keyed by ip / idem if that ever matters beyond the demo.
 const lastPay = new Map<string, number>();
+const ipHits = new Map<string, number[]>();
 const done = new Map<string, Paid>();
 const WINDOW_MS = 5000;
+// A venue's Wi-Fi (or a carrier's NAT) puts a whole room behind one IP, so the 5 s limit is per
+// device; the IP only gets a loose ceiling against scripted floods.
+const IP_PER_MIN = 120;
 
 type Paid = { txn_ref: string; amount: number; business_name: string; created_at: string };
 
@@ -40,11 +44,17 @@ export async function POST(req: Request) {
   const m = await merchants.get(b.mid);
   if (!m) return bad(404, "Merchant not found.");
 
-  // Check and claim synchronously, so two concurrent requests from one IP can't both pass.
+  // Check and claim synchronously, so two concurrent requests from one device can't both pass.
   const ip = ipOf(req);
+  const device = typeof b.device === "string" && /^[\w-]{8,64}$/.test(b.device) ? b.device : null;
+  const key = device ? `d:${device}` : `ip:${ip}`;
   const now = Date.now();
-  if (now - (lastPay.get(ip) ?? 0) < WINDOW_MS) return bad(429, "One payment every 5 seconds. Try again shortly.");
-  lastPay.set(ip, now);
+  if (now - (lastPay.get(key) ?? 0) < WINDOW_MS) return bad(429, "One payment every 5 seconds. Try again shortly.");
+  const hits = (ipHits.get(ip) ?? []).filter((t) => now - t < 60_000);
+  if (hits.length >= IP_PER_MIN) return bad(429, "Too many payments from this network. Try again in a minute.");
+  lastPay.set(key, now);
+  ipHits.set(ip, [...hits, now]);
+  if (lastPay.size > 5000) lastPay.clear(); // bounded; a cleared entry only forgets a 5 s window
 
   try {
     const p = await db.payment.create({
@@ -64,7 +74,7 @@ export async function POST(req: Request) {
     if (idem) done.set(idem, out);
     return NextResponse.json(out);
   } catch (err) {
-    lastPay.delete(ip);
+    lastPay.delete(key);
     console.error("pay insert failed", err);
     return bad(500, "Payment failed. Nothing was charged. Try again.");
   }
