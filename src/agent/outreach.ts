@@ -3,13 +3,13 @@
 import { db } from "@/lib/db";
 import type { Merchant } from "@/generated/prisma/client";
 import { sendButtons, sendText, sendVoice } from "@/channels/whatsapp";
-import { conversationFor, logMessage, plain, ttsLang } from "./concierge";
+import { conversationFor, logMessage, plain, ttsLang, waLang } from "./concierge";
 import { approvalMessage, merchantMessage } from "./notifier";
 import { trace } from "./trace";
 import { activeDemoMid } from "@/lib/demo";
 
 // The language the merchant picked in chat, else their profile language.
-const chosen = async (m: Merchant) => (await conversationFor(m.id, "WA")).language ?? m.language;
+const chosen = async (m: Merchant) => waLang((await conversationFor(m.id, "WA")).language ?? m.language)!;
 
 // Real sends only ever go to the demo phone: for the seeded demo merchant, and for whichever
 // merchant the switcher has the phone acting as. The other merchants' numbers are generated

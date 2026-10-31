@@ -11,7 +11,7 @@ import { trace } from "./trace";
 
 const CHANGE = /^\s*(change language|language|bhasha badlo|bhasha badliye|bhasha|भाषा बदलो|भाषा)\s*[.!?]*\s*$/i;
 const PICKED: Record<string, string> = {
-  hi: "ठीक है, अब से हम हिंदी में बात करेंगे।",
+  hi: "Theek hai, ab se Hinglish mein baat karenge.",
   hinglish: "Theek hai, ab se Hinglish mein baat karenge.",
   en: "Great, I'll reply in English from now on.",
   haryanvi: "Thik sai, ib te Haryanvi mein baat karange.",
@@ -19,8 +19,8 @@ const PICKED: Record<string, string> = {
 
 // First chat (or "change language"): ask once, with buttons, and hold their question meanwhile.
 async function askLanguage(to: string, owner: string, conversation_id: string) {
-  const body = `Namaste ${owner} ji! Main Hisaab hoon, aapka Paytm Business saathi.\nAap kis bhasha mein baat karna chahenge? Which language would you like to chat in?\n\n(Haryanvi ke liye "Haryanvi" likhiye)`;
-  const r = await sendButtons(to, body, [{ id: "lang:hi", title: "हिंदी" }, { id: "lang:hinglish", title: "Hinglish" }, { id: "lang:en", title: "English" }]);
+  const body = `Namaste ${owner} ji! Main Hisaab hoon, aapka Paytm Business saathi.\nAap kis bhasha mein baat karna chahenge? Which language would you like to chat in?`;
+  const r = await sendButtons(to, body, [{ id: "lang:hinglish", title: "Hinglish" }, { id: "lang:en", title: "English" }, { id: "lang:haryanvi", title: "Haryanvi" }]);
   await logMessage({ conversation_id, direction: "OUT", type: "BUTTONS", text: body, wamid: r.wamid });
 }
 

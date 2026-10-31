@@ -25,8 +25,10 @@ const isHaryanvi = (t: string) => {
   const hits = t.match(HARYANVI)?.length ?? 0;
   return /[\u0900-\u097F]/.test(t) ? hits >= 1 : hits >= 2 || (hits === 1 && HINGLISH.test(t));
 };
+// WhatsApp messages are always in Latin letters (the user's call): "hi" is written as Hinglish.
+export const waLang = (l: string | null | undefined) => (l === "hi" ? "hinglish" : l);
 export const LANGS: Record<string, string> = {
-  hi: "Hindi (Devanagari)",
+  hi: "Hinglish (Hindi in Latin letters)",
   hinglish: "Hinglish (Hindi in Latin letters)",
   en: "English",
   haryanvi: "Haryanvi (light and respectful, in Latin letters)",
@@ -35,9 +37,9 @@ export const LANGS: Record<string, string> = {
 export const ttsLang = (l: string | null | undefined) => (l === "en" ? "en" : l === "hi" ? "hi" : "hinglish") as "hi" | "hinglish" | "en";
 
 export function replyLanguage(text: string, o: { spoken?: string; profile: string }) {
-  const hindiScript = o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
+  const hindiScript = "Hinglish (Hindi in Latin letters)";
   if (isHaryanvi(text)) return "Haryanvi (light and respectful, in the same script the merchant used)";
-  if (/[\u0900-\u097F]/.test(text)) return o.spoken ? hindiScript : "Hindi (Devanagari)";
+  if (/[\u0900-\u097F]/.test(text)) return hindiScript;
   if (!/[a-z]/i.test(text)) return o.profile === "en" ? "English" : hindiScript;
   // English only when the whole message is English. Voice arrives romanised, so a spoken
   // Hindi sentence answers in the merchant's usual script.
@@ -111,14 +113,14 @@ export async function converse(o: {
   let reply = plain(r.text) || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
   // A long chat history can pull the model back into its usual script. The chosen language is a
   // promise to the merchant, so a wrong-script reply is rewritten once (facts unchanged).
-  const wantDeva = o.language === "hi";
+  const wantDeva = false; // never Devanagari on WhatsApp
   const hasDeva = /[\u0900-\u097F]/.test(reply);
-  if (o.language && r.text && (wantDeva !== hasDeva || (o.language === "en" && HINGLISH.test(reply)))) {
+  if (r.text && (wantDeva !== hasDeva || (o.language === "en" && HINGLISH.test(reply)))) {
     const fix = await claude.messages.create({
       model: MODEL.converse(),
       max_tokens: 2048,
       system: "Rewrite the message in the requested language and script. Keep every fact, number, ₹ amount, date and time exactly as written. Plain text, no markdown. Output only the rewritten message.",
-      messages: [{ role: "user", content: `Language: ${LANGS[o.language]}\n\nMessage:\n${reply}` }],
+      messages: [{ role: "user", content: `Language: ${LANGS[o.language ?? "hinglish"] ?? LANGS.hinglish}\n\nMessage:\n${reply}` }],
     });
     reply = plain(textOf(fix)) || reply;
     await trace({ kind: "THINK", name: "language.rewrite", conversation_id: o.conversation_id, payload: { to: o.language } });
