@@ -15,6 +15,7 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | Test lab (every anomaly, PASS/FAIL) | `/lab?k=<INJECT_TOKEN>` | presenter |
 | Shop QR pay page | `/pay/<MID>?s=<sig>` (open via "Collect payment") | audience |
 | Claim a shop (judges link their WhatsApp) | `/claim` · admin `/claim?k=<INJECT_TOKEN>` | judges / host |
+| Every store's NFC tap link + shop QR pay link (open / copy) | `/ops/merchants` → "Links" column | host |
 
 ## Golden rules for testing
 - **One shared production database.** Anything you inject or reset is live. Test on **Random** merchants
