@@ -3,6 +3,7 @@
 import { randomInt } from "node:crypto";
 import { db } from "@/lib/db";
 import { digits, samePhone } from "@/channels/whatsapp";
+import { activeDemoMid } from "@/lib/demo";
 
 // 10 digits = an Indian mobile without the country code. Anything shorter isn't a phone.
 export function normalizePhone(raw: string) {
@@ -47,6 +48,9 @@ export async function activate(fromPhone: string, code: string) {
   if (b.status === "ACTIVE") return { ok: true as const, merchant_id: b.merchant_id, already: true };
   const holder = await db.phoneBinding.findFirst({ where: { merchant_id: b.merchant_id, status: "ACTIVE", NOT: { id: b.id } } });
   if (holder) return { ok: false as const, reason: "Ye shop abhi kisi aur ne le li. Claim page par doosri shop chuniye." };
+  // The same 15-shop cap as JOIN, so the /claim path can't exceed it.
+  if ((await db.phoneBinding.count({ where: { status: "ACTIVE" } })) >= MAX_ACTIVE)
+    return { ok: false as const, reason: "Maaf kijiye, abhi saari demo dukaanein le li gayi hain. Thodi der baad try karein." };
   await db.phoneBinding.update({ where: { id: b.id }, data: { status: "ACTIVE", activated_at: new Date() } });
   return { ok: true as const, merchant_id: b.merchant_id, already: false };
 }
@@ -64,7 +68,8 @@ export async function join(fromPhone: string, display_name: string | null) {
     return { ok: false as const, reason: "Maaf kijiye, abhi saari demo dukaanein le li gayi hain. Thodi der baad JOIN HISAAB dobara bhejiye." };
   // Free = not demo and no claim by anyone else, PENDING included (that judge is mid-claim).
   const free = await db.merchant.findMany({
-    where: { is_demo: false, id: { notIn: (await db.phoneBinding.findMany({ where: { NOT: { phone } }, select: { merchant_id: true } })).map((b) => b.merchant_id).concat("MID-0001") } },
+    // Also never the shop the host's demo phone is acting as right now.
+    where: { is_demo: false, id: { notIn: (await db.phoneBinding.findMany({ where: { NOT: { phone } }, select: { merchant_id: true } })).map((b) => b.merchant_id).concat("MID-0001", await activeDemoMid()) } },
     select: { id: true },
   });
   if (!free.length) return { ok: false as const, reason: "Maaf kijiye, abhi saari demo dukaanein le li gayi hain. Thodi der baad JOIN HISAAB dobara bhejiye." };
