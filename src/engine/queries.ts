@@ -22,11 +22,15 @@ const clock = (t: Date) => new Date(+t + IST).toISOString().slice(11, 16);
 const sum = (xs: { amount: number }[]) => xs.reduce((s, x) => s + x.amount, 0);
 const settlementDate = (day: string) => new Date(`${day}T00:00:00Z`); // @db.Date column
 
-export async function findPayment(merchant_id: string, q: { amount?: number; from?: string; to?: string; payer_vpa?: string }) {
+export async function findPayment(merchant_id: string, q: { amount?: number; from?: string; to?: string; payer_vpa?: string; upi_ref?: string }) {
   const from = q.from ? dayRange(q.from).gte : new Date(Date.now() - 2 * DAY);
   const to = q.to ? dayRange(q.to).lt : new Date(Date.now() + 60_000);
+  // A UPI reference is exact and dated by the payer's app, so it ignores the date window.
+  const ref = q.upi_ref?.replace(/\D/g, "");
   const rows = await db.payment.findMany({
-    where: { merchant_id, amount: q.amount, created_at: { gte: from, lt: to }, payer_vpa: q.payer_vpa ? { contains: q.payer_vpa, mode: "insensitive" } : undefined },
+    where: ref
+      ? { merchant_id, txn_ref: ref }
+      : { merchant_id, amount: q.amount, created_at: { gte: from, lt: to }, OR: q.payer_vpa ? [{ payer_vpa: { contains: q.payer_vpa, mode: "insensitive" } }, { payer_name: { contains: q.payer_vpa, mode: "insensitive" } }] : undefined },
     orderBy: { created_at: "desc" },
     take: 10,
   });
@@ -39,7 +43,7 @@ export async function findPayment(merchant_id: string, q: { amount?: number; fro
       at: `${istDay(p.created_at)} ${clock(p.created_at)} IST`,
       settles_on: p.status === "SUCCESS" ? addDays(istDay(p.created_at), 1) : null,
     })),
-    note: rows.length ? undefined : "No payment matched in this window.",
+    note: rows.length ? undefined : ref ? "No payment with this UPI reference ever reached this merchant." : "No payment matched in this window.",
   };
 }
 
