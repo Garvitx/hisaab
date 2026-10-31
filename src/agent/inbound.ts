@@ -107,7 +107,7 @@ export async function handleInbound({ msg }: Inbound) {
     return askLanguage(msg.from, merchant.owner_name.split(" ")[0], conv.id);
   }
 
-  const reply = await converse({ merchant, conversation_id: conv.id, text, voice, spoken, image, language });
+  const reply = await converse({ merchant, conversation_id: conv.id, text, voice, spoken, image, language, phone: msg.from });
 
   // Voice in → voice note plus the same text (CLAUDE.md section 9). Only the demo merchant has a real phone.
   if (voice) {

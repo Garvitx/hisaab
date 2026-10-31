@@ -75,6 +75,7 @@ export async function converse(o: {
   voice?: boolean;
   spoken?: string; // STT language code for voice notes, e.g. "en-IN"
   language?: string | null; // chosen on WhatsApp; overrides per-message detection
+  phone?: string | null; // the WhatsApp sender, for tools that send files back
   image?: { base64: string; mime: string; url: string } | null;
 }) {
   const past = await db.message.findMany({
@@ -107,7 +108,7 @@ export async function converse(o: {
     system: CONCIERGE_SYSTEM,
     tools: TOOLS,
     messages: [...history, { role: "user", content }],
-    exec: (name, input) => execTool(name, input, { merchant_id: o.merchant.id, conversation_id: o.conversation_id, image: o.image ? { url: o.image.url } : null }),
+    exec: (name, input) => execTool(name, input, { merchant_id: o.merchant.id, conversation_id: o.conversation_id, image: o.image ? { url: o.image.url } : null, phone: o.phone ?? null }),
     ids: { conversation_id: o.conversation_id },
   });
   let reply = plain(r.text) || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
