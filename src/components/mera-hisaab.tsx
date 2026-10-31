@@ -239,17 +239,29 @@ export function MeraHisaab({
 
   // New payments and credits since the page loaded: toast each, one announcement per poll.
   // A payment wins the voice when both land together; the credit still gets its toast.
+  // "New" = created after this page started listening (and within 2 min) AND not seen before.
+  // An id check alone re-announced old payments whenever the merchant switched or rows were
+  // deleted (older payments slid into the visible window and looked new).
   const seen = useRef<Set<string> | null>(null);
+  const since = useRef(0);
+  useEffect(() => {
+    seen.current = null; // a different merchant starts from a clean slate
+  }, [mid]);
   useEffect(() => {
     if (!m) return;
     const ids = [...m.payments.map((p) => p.id), ...m.credits.map((c) => c.id)];
     if (!seen.current) {
       seen.current = new Set(ids);
+      since.current = Date.now();
       return;
     }
+    const fresh = (t: string) => {
+      const at = Date.parse(t);
+      return at >= since.current - 5_000 && Date.now() - at < 120_000;
+    };
     const s = seen.current;
-    const pays = m.payments.filter((p) => !s.has(p.id)).reverse();
-    const creds = m.credits.filter((c) => !s.has(c.id));
+    const pays = m.payments.filter((p) => !s.has(p.id) && fresh(p.created_at)).reverse();
+    const creds = m.credits.filter((c) => !s.has(c.id) && fresh(c.created_at));
     ids.forEach((id) => s.add(id));
     const ok = pays.filter((p) => p.status === "SUCCESS");
     // At most 3 toasts per poll: past that, two names and one "+N more" summary.
@@ -266,7 +278,7 @@ export function MeraHisaab({
       toast.success(`${inr(c.amount)} wapas aaye`, { description: c.reason });
       if (!spoke) announce(`Paytm par ₹${c.amount} refund prapt hue`);
     }
-  }, [m]);
+  }, [m, mid]);
   const sound = useSound();
 
   if (!m)
