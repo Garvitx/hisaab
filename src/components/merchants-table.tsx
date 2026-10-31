@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Smartphone } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MerchantRow } from "@/app/api/ui/merchants/route";
 import { usePoll } from "@/components/live";
@@ -12,6 +13,8 @@ const HEALTH = ["all", "issue", "fixed", "clean"] as const;
 
 export function MerchantsTable() {
   const { data, error } = usePoll<M[]>("/api/ui/merchants", 3000);
+  const { data: claims } = usePoll<{ shops: { id: string; state: string }[] }>("/api/claim", 5000);
+  const taken = new Set((claims?.shops ?? []).filter((s) => s.state === "TAKEN").map((s) => s.id));
   const sp = useSearchParams();
   const router = useRouter();
   const path = usePathname();
@@ -113,6 +116,11 @@ export function MerchantsTable() {
                         <span className="num">{m.id}</span>
                         <span>{m.owner_name}</span>
                         {m.is_demo && <Pill t="sky" className="h-5 px-2 text-xs">Demo</Pill>}
+                        {taken.has(m.id) && (
+                          <Pill t="good" className="h-5 px-2 text-xs">
+                            <Smartphone className="size-3" aria-hidden /> Claimed
+                          </Pill>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2.5"><HealthBadge h={m.health} /></td>

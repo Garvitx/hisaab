@@ -2,13 +2,20 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LabPanel } from "@/components/lab-panel";
 import { injectTokenOk } from "@/components/inject-token";
+import { ClaimQR } from "@/components/claim-qr";
 import { Panel, Skeleton } from "@/components/bits";
 
 export const metadata: Metadata = { title: "Hisaab test lab", description: "Inject every anomaly and decoy and grade what Hisaab did." };
 
 async function Gate({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { k } = await searchParams;
-  if (injectTokenOk(k)) return <LabPanel k={k} />;
+  if (injectTokenOk(k))
+    return (
+      <div className="flex flex-col gap-4">
+        <LabPanel k={k} />
+        <ClaimQR />
+      </div>
+    );
   return (
     <div className="mx-auto max-w-md pt-10">
       <Panel>

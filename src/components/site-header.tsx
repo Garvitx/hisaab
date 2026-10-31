@@ -15,6 +15,7 @@ const OPS_NAV = [
   { href: "/ops/policy", label: "Policy" },
   { href: "/ops/audit", label: "Audit" },
   { href: "/lab", label: "Lab" },
+  { href: "/claim", label: "Claim" },
   { href: "/demo", label: "Demo" },
 ];
 
