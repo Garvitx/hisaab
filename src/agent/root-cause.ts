@@ -10,6 +10,7 @@ import * as logistics from "@/systems/logistics";
 import { TEMPLATES, type Template } from "@/systems/guards";
 import { MODEL, json } from "./llm";
 import { trace } from "./trace";
+import { COURIERS } from "@/inject/lib";
 
 const DAY = 86_400_000;
 const MIN_MERCHANTS = 3;
@@ -36,7 +37,8 @@ async function attrsOf(refs: Record<string, unknown>) {
   const ev = WAREHOUSE_EVENTS.map((t) => device?.events.findLast((e) => e.type === t)).find(Boolean);
   const attrs: Partial<Record<Attr, string>> = {
     location: ev?.location ?? undefined,
-    actor: ev && ev.actor !== "hisaab" ? ev.actor : undefined,
+    // Only identities (field agents, couriers) group; free text like "Paytm warehouse, Okhla" or "hisaab" never does.
+    actor: ev && (/^FA-\d+$/.test(ev.actor) || COURIERS.includes(ev.actor)) ? ev.actor : undefined,
     window: ev?.at.toISOString().slice(0, 7),
     plan,
   };

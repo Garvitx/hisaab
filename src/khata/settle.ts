@@ -70,14 +70,14 @@ export async function afterSettle(creditor_mid: string, s: Settled) {
   const name = debtor?.business_name ?? s.debtor_name;
   await say(creditor, s.left ? `${name} ne ${rs(s.paid)} udhaar chukaya. Baaki ${rs(s.left)}.` : `${name} ne ${rs(s.paid)} chukaya. ${name} ka udhaar clear.`, { topic: "udhaar" });
   const receipt = `${creditor.business_name} ko ${rs(s.paid)} ka udhaar Paytm se chuka diya.${s.left ? ` Ab baaki ${rs(s.left)}.` : " Ab kuch baaki nahi."}`;
+  // A customer debtor's saved phone is whatever the merchant said; real sends go only to claimed / demo phones.
   if (debtor) await say(debtor, receipt, { topic: "udhaar" });
-  else if (s.debtor_phone) await sendText(s.debtor_phone, receipt);
 }
 
 const templatesOn = () => process.env.WA_TEMPLATES === "on";
 
-// "Gupta Sweets ko reminder bhejo". A shop goes through its claimed / demo phone; a customer through
-// the phone saved with the udhaar; no phone at all means the dashboard shows the link as a QR.
+// "Gupta Sweets ko reminder bhejo". A shop goes through its claimed / demo phone. A customer never gets
+// a real send (their saved phone came from speech or an unauthenticated op): the dashboard shows the QR.
 export async function sendReminder(creditor_mid: string, key: string) {
   const creditor = await db.merchant.findUniqueOrThrow({ where: { id: creditor_mid } });
   const b = (await udhaarBalances(creditor_mid)).find((x) => x.key === key);
@@ -85,7 +85,7 @@ export async function sendReminder(creditor_mid: string, key: string) {
   const link = reminderLink(creditor_mid, b.remind_entry_id);
   const text = `${creditor.business_name} se ${rs(b.lene)} baaki hai. Yahan pay karein: ${link}`;
   const debtor = b.mid ? await db.merchant.findUnique({ where: { id: b.mid } }) : null;
-  const phones = new Set<string>(debtor ? await phonesFor(debtor.id) : b.phone ? [b.phone] : []);
+  const phones = new Set<string>(debtor ? await phonesFor(debtor.id) : []);
   if (debtor && process.env.DEMO_MERCHANT_PHONE && (debtor.is_demo || debtor.id === (await activeDemoMid()))) phones.add(process.env.DEMO_MERCHANT_PHONE);
   let sent = false;
   for (const phone of phones) {

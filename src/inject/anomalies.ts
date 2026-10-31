@@ -18,8 +18,11 @@ export const rent_after_return: Injector = (p) => {
   const c = p.ctx, { sub, device } = cleanSoundbox(p), rents = rentCharges(c, sub.id, 4);
   if (rents.length < 4) throw new Error(`rent_after_return: ${c.mid} has only ${rents.length} rent charges`);
   const picked = at(monthStart(rents[0].period) - 5 * DAY, 12), received = new Date(picked.getTime() + 3 * DAY);
-  p.insert("logistics.device_events", { device_id: device.id, type: "PICKED_UP", at: picked, actor: courier() });
-  p.insert("logistics.device_events", { device_id: device.id, type: "RECEIVED_AT_WAREHOUSE", at: received, actor: "Paytm warehouse, Okhla" });
+  // One shop's lost return, not a systemic one: a per-event field agent and no location, so three of these
+  // in a day never share an attribute the root-cause finder groups on (warehouse_bug is the shared case).
+  const agent = `FA-${randomInt(1000, 9999)}`;
+  p.insert("logistics.device_events", { device_id: device.id, type: "PICKED_UP", at: picked, actor: agent });
+  p.insert("logistics.device_events", { device_id: device.id, type: "RECEIVED_AT_WAREHOUSE", at: received, actor: agent });
   const s = latest(c, rents.reduce((a, x) => a + x.amount, 0) + 3 * LATE_FEE);
   for (const r of rents) p.moveChargeDeduction(r, s);
   const fees = rents.slice(0, 3).map((r) => {

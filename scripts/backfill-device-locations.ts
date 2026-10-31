@@ -1,4 +1,4 @@
-// One-off: give existing logistics.device_events a warehouse location (the merchant's city hub, the
+// One-off: give existing DISPATCHED/DELIVERED device_events a warehouse location (the merchant's city hub, the
 // same map prisma/seed.ts uses). Only fills NULLs, so re-running is a no-op. Dry run unless --apply.
 // Skips the demo merchant, claimed shops and the shop the demo phone is acting as: those are never
 // written by scripts. Run: tsx scripts/backfill-device-locations.ts [--apply]
@@ -13,7 +13,7 @@ async function main() {
   const [{ mid: acting }] = (await s.query(`SELECT coalesce((SELECT active_demo_mid FROM hisaab.demo_settings WHERE id = 1), 'MID-0001') mid`)) as { mid: string }[];
   const city = `CASE m.city ${Object.entries(WAREHOUSE).map(([c, w]) => `WHEN '${c}' THEN '${w}'`).join(" ")} END`;
   const from = `FROM logistics.devices d JOIN merchants.merchants m ON m.id = d.merchant_id
-    WHERE e.device_id = d.id AND e.location IS NULL AND NOT m.is_demo AND m.id <> $1
+    WHERE e.device_id = d.id AND e.location IS NULL AND e.type IN ('DISPATCHED', 'DELIVERED') AND NOT m.is_demo AND m.id <> $1
       AND NOT EXISTS (SELECT 1 FROM hisaab.phone_bindings b WHERE b.merchant_id = m.id) AND (${city}) IS NOT NULL`;
   if (!process.argv.includes("--apply")) {
     const [{ n }] = (await s.query(`SELECT count(*)::int n FROM logistics.device_events e, ${from.replace(/^FROM /, "")}`, [acting])) as { n: number }[];
