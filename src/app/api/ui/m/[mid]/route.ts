@@ -4,9 +4,15 @@ import { day, inr, month } from "@/components/format";
 
 // "Mera Hisaab": what the merchant sees. Every deduction gets a plain Hinglish line.
 // One stage of parallel reads: every round trip to Neon costs about half a second.
+const IST_MS = 330 * 60 * 1000;
+const DAY_MS = 86_400_000;
+// Start of today's IST calendar day, as a UTC instant (18:30 UTC the previous day).
+const istDayStart = (now = Date.now()) => new Date(Math.floor((now + IST_MS) / DAY_MS) * DAY_MS - IST_MS);
+
 async function load(mid: string) {
   const w = { merchant_id: mid };
-  const [merchant, settlements, credits, charges, disputes, loans, undone, messages, payments, devices] = await Promise.all([
+  const dayStart = istDayStart();
+  const [merchant, settlements, credits, charges, disputes, loans, undone, messages, payments, devices, todayByStatus] = await Promise.all([
     db.merchant.findUnique({
       where: { id: mid },
       select: { id: true, business_name: true, owner_name: true, city: true, language: true },
@@ -34,6 +40,7 @@ async function load(mid: string) {
       orderBy: { model: "desc" },
       select: { id: true, serial: true, model: true, last_seen_at: true, events: { select: { type: true, at: true }, orderBy: { at: "asc" } } },
     }),
+    db.payment.groupBy({ by: ["status"], where: { ...w, created_at: { gte: dayStart } }, _count: { _all: true }, _sum: { amount: true } }),
   ]);
   if (!merchant) return null;
   const billed = charges.filter((c) => c.status === "BILLED");
@@ -93,6 +100,17 @@ async function load(mid: string) {
     credits: credits.map((c) => ({ ...c, undone: !!c.action_id && isUndone.has(c.action_id) })),
     warnings,
     devices,
+    today: (() => {
+      const g = (st: string) => todayByStatus.find((x) => x.status === st);
+      return {
+        count: g("SUCCESS")?._count._all ?? 0,
+        total: g("SUCCESS")?._sum.amount ?? 0,
+        pending: g("PENDING")?._count._all ?? 0,
+        failed: g("FAILED")?._count._all ?? 0,
+        // Today's payments settle tomorrow (IST).
+        settles_on: new Date(dayStart.getTime() + DAY_MS),
+      };
+    })(),
     messages: messages.reverse(),
     payments: payments.map(({ payer_name, payer_vpa, ...p }) => ({ ...p, payer: payer_name || payer_vpa })),
   };

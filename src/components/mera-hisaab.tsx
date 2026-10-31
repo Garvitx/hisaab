@@ -344,6 +344,19 @@ export function MeraHisaab({
           <p className="text-ink-3">Namaste {m.merchant.owner_name.split(" ")[0]} ji</p>
           <h1 className={compact ? "text-xl" : "text-2xl"}>Mera Hisaab</h1>
           <p className="text-sm text-ink-3">{m.merchant.business_name}, {m.merchant.city}</p>
+          <div className="mt-4 rounded-lg bg-navy px-4 py-3 text-navy-ink">
+            <p className="text-sm text-navy-ink-2">Aaj ab tak</p>
+            <p className="flex flex-wrap items-baseline gap-x-3">
+              <span className="num text-3xl font-semibold">{inr(m.today.total)}</span>
+              <span className="num text-navy-ink-2">{m.today.count} payment</span>
+            </p>
+            {(m.today.pending > 0 || m.today.failed > 0) && (
+              <p className="num mt-0.5 text-sm text-navy-ink-2">
+                {[m.today.pending && `${m.today.pending} pending`, m.today.failed && `${m.today.failed} failed`].filter(Boolean).join(", ")}
+              </p>
+            )}
+            <p className="mt-1 text-sm text-navy-ink-2">Kal ({day(m.today.settles_on)}) ko settle hoga</p>
+          </div>
           {m.devices.length > 0 && (
             <div className="mt-3">
               <DeviceList devices={m.devices} />
@@ -352,7 +365,10 @@ export function MeraHisaab({
         </div>
         {latest ? (
           <>
-            <p className="px-4 pt-3 text-sm text-ink-2">Sabse naya settlement</p>
+            <div className="border-t border-rule px-4 pt-3">
+              <h2 className="text-base">Sabse naya settlement (bank mein bheja)</h2>
+              <p className="text-sm text-ink-3">{day(new Date(new Date(latest.date).getTime() - 86_400_000))} ke payments ka</p>
+            </div>
             <Settlement s={latest} open />
           </>
         ) : (

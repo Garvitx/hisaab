@@ -146,7 +146,8 @@ export async function main() {
     }
 
     const byDate = new Map<number, any>();
-    for (let d = HISTORY_FROM; d < today; d += DAY) {
+    // Through today: this morning's T+1 payout of yesterday's sales already exists, like on Paytm.
+    for (let d = HISTORY_FROM; d <= today; d += DAY) {
       const gross = grossOf.get(d - DAY) ?? Math.round(base * meanAmt * WEEKDAY[new Date(d - DAY).getUTCDay()] * (0.75 + rand() * 0.5));
       const s = { id: randomUUID(), merchant_id: mid, date: new Date(d), gross, deductions_total: 0, net: 0, status: "SETTLED" };
       settlements.push(s);
