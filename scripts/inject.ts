@@ -1,5 +1,6 @@
 // pnpm inject <type> --demo | --merchant MID-xxxx | --random [--failed]
 // pnpm inject:decoy <type> [--demo | --merchant MID-xxxx | --random]
+// pnpm inject warehouse_bug [--count 5] [--location NOIDA-2]   (always unclaimed non-demo shops)
 import { config } from "dotenv";
 
 config({ path: ".env.local", quiet: true });
@@ -15,7 +16,8 @@ async function main() {
     throw new Error(`usage: pnpm inject <type> --demo|--merchant MID-xxxx|--random [--failed]\n  types: ${c.types.map((t) => t.type).join(", ")}\n  decoys: ${c.decoys.map((t) => t.type).join(", ")}`);
   }
   const t0 = Date.now();
-  const r = await inject(type, target, { decoy: has("--decoy"), failed: has("--failed") });
+  const val = (f: string) => (has(f) ? args[args.indexOf(f) + 1] : undefined);
+  const r = await inject(type, target, { decoy: has("--decoy"), failed: has("--failed"), count: val("--count") ? Number(val("--count")) : undefined, location: val("--location") });
   console.log(`${has("--decoy") ? "decoy " : ""}${type} -> ${r.merchant_id}: ${r.summary} [${r.injection_id}, ${Date.now() - t0} ms]`);
 }
 

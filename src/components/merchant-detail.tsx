@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import { use } from "react";
 import type { MerchantDetail as D } from "@/app/api/ui/merchants/[mid]/route";
 import { usePoll } from "@/components/live";
@@ -152,7 +153,13 @@ export function MerchantDetail({ params, qr }: { params: Promise<{ mid: string }
                 <T
                   head={["Period", "Kind", "Amount", "Status", "Notice sent"]}
                   num={[2]}
-                  rows={s.charges.map((c) => [month(c.period), c.kind.replace("_", " ").toLowerCase(), inr(c.amount), c.status.toLowerCase(), c.notice_sent_at ? day(c.notice_sent_at) : ""])}
+                  rows={s.charges.map((c) => {
+                    const cells: React.ReactNode[] = [month(c.period), c.kind.replace("_", " ").toLowerCase(), inr(c.amount), c.status.toLowerCase(), c.notice_sent_at ? day(c.notice_sent_at) : ""];
+                    if (c.status !== "BLOCKED") return cells;
+                    // Stopped by a guard before it reached a settlement: shown, greyed, never owed.
+                    cells[3] = <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3.5" aria-hidden />blocked by guard</span>;
+                    return cells.map((x, i) => <span key={i} className="text-ink-3">{x}</span>);
+                  })}
                 />
               </div>
             ))}
@@ -175,7 +182,7 @@ export function MerchantDetail({ params, qr }: { params: Promise<{ mid: string }
                       </span>
                     )}
                   </div>
-                  <T head={["When", "Event", "By"]} rows={d.events.map((e) => [dayYear(e.at), e.type.replaceAll("_", " ").toLowerCase(), e.actor])} />
+                  <T head={["When", "Event", "By"]} rows={d.events.map((e) => [dayYear(e.at), e.type.replaceAll("_", " ").toLowerCase(), e.location ? `${e.actor} at ${e.location}` : e.actor])} />
                   {d.replacement_requests.length > 0 && (
                     <T head={["Replacement booked", "Reason", "Status"]} rows={d.replacement_requests.map((r) => [ago(r.created_at), r.reason, r.status.toLowerCase()])} />
                   )}

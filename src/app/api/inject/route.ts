@@ -15,7 +15,7 @@ export async function GET() {
   return NextResponse.json(catalog());
 }
 
-// { type, target: "demo" | "random" | "MID-xxxx", decoy?, failed? } or { reset: true }
+// { type, target: "demo" | "random" | "MID-xxxx", decoy?, failed?, count?, location? } or { reset: true }
 export async function POST(req: Request) {
   if (!tokenOk(new URL(req.url).searchParams.get("k"))) return NextResponse.json({ ok: false, error: "bad token" }, { status: 401 });
   const body = await req.json().catch(() => null);
@@ -23,7 +23,10 @@ export async function POST(req: Request) {
   try {
     if (body.reset === true) return NextResponse.json({ ok: true, reset: true, ...(await reset()) });
     if (typeof body.type !== "string") return NextResponse.json({ ok: false, error: "type required" }, { status: 400 });
-    const r = await inject(body.type, typeof body.target === "string" ? body.target : "random", { decoy: body.decoy === true, failed: body.failed === true });
+    const r = await inject(body.type, typeof body.target === "string" ? body.target : "random", {
+      decoy: body.decoy === true, failed: body.failed === true,
+      count: typeof body.count === "number" ? body.count : undefined, location: typeof body.location === "string" ? body.location : undefined,
+    });
     // Detect right away instead of waiting for a dashboard's heartbeat: with only /m open (or no
     // browser at all) injections used to sit in the outbox. 1.7 s clears the watcher's 1.5 s debounce.
     after(async () => {

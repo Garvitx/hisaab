@@ -4,11 +4,12 @@ import { getScoreboard } from "@/lib/scoreboard";
 import { caseRows } from "../cases";
 
 async function load(activeId: string | null) {
-  const [scoreboard, merchants, rows, waiting] = await Promise.all([
+  const [scoreboard, merchants, rows, waiting, rootCauses] = await Promise.all([
     getScoreboard(),
     db.merchant.count(),
     caseRows(),
     db.outboxEvent.count({ where: { processed_at: null } }),
+    db.rootCause.findMany({ where: { status: { not: "CLOSED" } }, orderBy: { updated_at: "desc" }, take: 3, include: { guards: { orderBy: { created_at: "asc" } } } }),
   ]);
   const active = rows.find((r) => r.id === activeId) ?? rows[0] ?? null;
   const trace = active
@@ -17,6 +18,7 @@ async function load(activeId: string | null) {
   const open = (s: string) => s === "AWAITING_APPROVAL" || s === "AWAITING_MERCHANT";
   return {
     scoreboard,
+    rootCauses,
     merchants,
     waiting,
     caseIds: rows.map((r) => r.id),

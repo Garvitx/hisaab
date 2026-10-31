@@ -1,6 +1,6 @@
 import * as billing from "@/systems/billing";
 import * as logistics from "@/systems/logistics";
-import { mine, no, periodStart, str, sum, type Verifier } from "./common";
+import { mine, no, owed, periodStart, str, sum, type Verifier } from "./common";
 
 const DAY = 86_400_000;
 
@@ -16,7 +16,7 @@ export const pickup_never_completed: Verifier = async (refs, ctx) => {
   if (device!.events.some((e) => (e.type === "PICKED_UP" || e.type === "RECEIVED_AT_WAREHOUSE") && e.at >= requested.at))
     return no("Pickup completed", refs);
   const sub = await billing.subscriptionForDevice(device!.id);
-  const billingAfter = sub?.status === "ACTIVE" ? sub.charges.filter((c) => c.status !== "REVERSED" && periodStart(c.period) > requested.at) : [];
+  const billingAfter = sub?.status === "ACTIVE" ? sub.charges.filter((c) => owed(c) && periodStart(c.period) > requested.at) : [];
   const out = { device_id: device!.id, subscription_id: sub?.id ?? null, charge_ids: billingAfter.map((c) => c.id) };
   if (!billingAfter.length) return no("Rent is not billing after the pickup request", out);
   // WARN, not WRONG: only the merchant can say whether the courier actually took it.

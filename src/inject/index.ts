@@ -4,6 +4,7 @@ import { BUSY_AVG, BUSY_MIN, Plan, load, sql } from "./lib";
 import type { Injector } from "./anomalies";
 import * as A from "./anomalies";
 import * as D from "./decoys";
+import { WAREHOUSES, warehouseBug } from "./warehouse-bug";
 
 type Entry = { run: Injector; label: string; amount?: number; options?: string[] };
 
@@ -30,7 +31,9 @@ export const DECOYS: Record<string, Entry> = {
 
 export const catalog = () => {
   const list = (r: Record<string, Entry>) => Object.entries(r).map(([type, { label, amount, options }]) => ({ type, label, amount: amount ?? null, options: options ?? [] }));
-  return { types: list(ANOMALIES), decoys: list(DECOYS), targets: ["demo", "random", "MID-xxxx"] };
+  // warehouse_bug ignores the target: it always picks `count` unclaimed non-demo shops.
+  const multi = { type: "warehouse_bug", label: "Warehouse bug (many shops)", amount: null, options: [], params: { count: { default: 5, min: 1, max: 10 }, location: { default: "NOIDA-2", choices: [...WAREHOUSES] } } };
+  return { types: [...list(ANOMALIES), multi], decoys: list(DECOYS), targets: ["demo", "random", "MID-xxxx"] };
 };
 
 // demo → MID-0001; MID-xxxx → that merchant; random → a non-demo merchant not injected yet
@@ -58,7 +61,8 @@ async function resolveTarget(type: string, target: string) {
   return pool[randomInt(pool.length)].id;
 }
 
-export async function inject(type: string, target: string, opts: { decoy?: boolean; failed?: boolean } = {}) {
+export async function inject(type: string, target: string, opts: { decoy?: boolean; failed?: boolean; count?: number; location?: string } = {}) {
+  if (type === "warehouse_bug" && !opts.decoy) return warehouseBug(opts);
   const entry = (opts.decoy ? DECOYS : { ...ANOMALIES, ...DECOYS })[type];
   if (!entry) throw new Error(`unknown ${opts.decoy ? "decoy" : "type"} ${type}`);
   const merchant_id = await resolveTarget(type, target);

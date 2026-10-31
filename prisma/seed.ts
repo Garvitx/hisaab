@@ -27,6 +27,9 @@ const logUniform = (lo: number, hi: number) => Math.round(Math.exp(Math.log(lo) 
 const ymd = (d: number) => new Date(d).toISOString().slice(0, 10);
 const digits = (s?: string) => String(s ?? "").replace(/\D/g, "");
 
+// Each city's logistics hub (logistics.device_events.location). scripts/backfill-device-locations.ts uses the same map.
+export const WAREHOUSE: Record<string, string> = { Noida: "NOIDA-2", Gurugram: "GGN-1", Delhi: "DEL-3", Ghaziabad: "GZB-1", Faridabad: "FBD-1" };
+
 // [business, owner, city, segment, language]. MID = index + 1.
 const MERCHANTS = [
   ["Ramesh Kirana Store", "Ramesh Kumar", "Noida", "kirana", "hinglish"],
@@ -125,8 +128,9 @@ export async function main() {
       const dispatched = onboarded + int(1, 3) * DAY, delivered = dispatched + int(1, 4) * DAY;
       const courier = pick(COURIERS);
       devices.push(device);
-      events.push({ id: randomUUID(), device_id: device.id, type: "DISPATCHED", at: new Date(dispatched), actor: courier },
-        { id: randomUUID(), device_id: device.id, type: "DELIVERED", at: new Date(delivered), actor: courier });
+      const location = WAREHOUSE[city]; // the city's hub ships and delivers; from the city, so no extra rand() draws
+      events.push({ id: randomUUID(), device_id: device.id, type: "DISPATCHED", at: new Date(dispatched), actor: courier, location },
+        { id: randomUUID(), device_id: device.id, type: "DELIVERED", at: new Date(delivered), actor: courier, location });
       subs.push({ id: randomUUID(), merchant_id: mid, device_id: device.id, plan, monthly_rent: rent, status: "ACTIVE", started_at: new Date(delivered) });
     }
 

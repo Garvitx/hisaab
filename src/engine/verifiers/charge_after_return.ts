@@ -1,5 +1,5 @@
 import * as logistics from "@/systems/logistics";
-import { mine, no, periodStart, subscriptionOf, sum, type Verifier } from "./common";
+import { mine, no, owed, periodStart, subscriptionOf, sum, type Verifier } from "./common";
 
 // refs: { subscription_id } or { device_id }
 export const charge_after_return: Verifier = async (refs, ctx) => {
@@ -9,7 +9,7 @@ export const charge_after_return: Verifier = async (refs, ctx) => {
   const at = (t: string) => device?.events.find((e) => e.type === t)?.at;
   const returned = at("RECEIVED_AT_WAREHOUSE") ?? at("PICKED_UP");
   if (!returned) return no("Device was never returned", refs);
-  const wrong = sub!.charges.filter((c) => c.status !== "REVERSED" && periodStart(c.period) > returned);
+  const wrong = sub!.charges.filter((c) => owed(c) && periodStart(c.period) > returned);
   const out = { subscription_id: sub!.id, device_id: sub!.device_id, charge_ids: wrong.map((c) => c.id) };
   if (!wrong.length) return no("No charges after the return", out);
   return {

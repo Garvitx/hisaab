@@ -15,6 +15,8 @@ export const mine = (row: { merchant_id: string } | null | undefined, ctx?: Ctx)
   !!row && (!ctx?.merchant_id || row.merchant_id === ctx.merchant_id);
 
 export const periodStart = (period: string) => new Date(`${period}-01T00:00:00Z`);
+// REVERSED was refunded; BLOCKED was stopped by a guard before it was deducted. Neither is owed.
+export const owed = (c: { status: string }) => c.status !== "REVERSED" && c.status !== "BLOCKED";
 export const sum = (xs: { amount: number }[]) => xs.reduce((a, x) => a + x.amount, 0);
 
 // A subscription named directly, or the latest one on a named device.
