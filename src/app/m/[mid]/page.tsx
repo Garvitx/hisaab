@@ -3,12 +3,14 @@ import { Suspense } from "react";
 import { MeraHisaab } from "@/components/mera-hisaab";
 import { MerchantQR } from "@/components/merchant-qr";
 import { Panel, Skeleton } from "@/components/bits";
+import { KhataPanel } from "@/components/khata/khata-panel";
+import { NfcCard } from "@/components/khata/nfc-card";
 
 export const metadata: Metadata = { title: "Mera Hisaab", description: "Har settlement, har katauti, saaf saaf." };
 
 async function Body({ params }: { params: Promise<{ mid: string }> }) {
   const { mid } = await params;
-  return <MeraHisaab mid={mid} qr={<MerchantQR mid={mid} />} />;
+  return <MeraHisaab mid={mid} qr={<MerchantQR mid={mid} />} khata={<KhataPanel mid={mid} nfc={<NfcCard mid={mid} />} />} />;
 }
 
 export default function Page({ params }: PageProps<"/m/[mid]">) {

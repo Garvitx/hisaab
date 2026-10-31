@@ -5,6 +5,7 @@ import * as billing from "@/systems/billing";
 import * as lending from "@/systems/lending";
 import * as logistics from "@/systems/logistics";
 import * as settlement from "@/systems/settlement";
+import { khataPeriod } from "@/khata/balances";
 
 const IST = 5.5 * 3_600_000;
 const DAY = 86_400_000;
@@ -202,6 +203,8 @@ export async function dailySummary(merchant_id: string, day = istDay()) {
     yesterday_same_time_total: yTotal,
     change_vs_yesterday: total - yTotal,
     next_settlement: await forecastSettlement(merchant_id, addDays(day, 1)),
+    // Cash, kharcha and udhaar the merchant told us (self-reported), next to the UPI above (verified by Paytm).
+    khata: await khataPeriod(merchant_id, day).then(({ cash, expenses, kamai, net, udhaar }) => ({ self_reported: true, cash: cash.total, expenses: expenses.total, kamai_upi_plus_cash: kamai, net_after_expenses: net, udhaar })),
   };
 }
 

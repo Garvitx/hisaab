@@ -108,7 +108,7 @@ export async function converse(o: {
     system: CONCIERGE_SYSTEM,
     tools: TOOLS,
     messages: [...history, { role: "user", content }],
-    exec: (name, input) => execTool(name, input, { merchant_id: o.merchant.id, conversation_id: o.conversation_id, image: o.image ? { url: o.image.url } : null, phone: o.phone ?? null }),
+    exec: (name, input) => execTool(name, input, { merchant_id: o.merchant.id, conversation_id: o.conversation_id, image: o.image ? { url: o.image.url } : null, phone: o.phone ?? null, voice: !!o.voice }),
     ids: { conversation_id: o.conversation_id },
   });
   let reply = plain(r.text) || "Maaf kijiye, abhi jawab nahi de paaya. Thodi der mein phir try karein.";
