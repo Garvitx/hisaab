@@ -47,6 +47,8 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | **Scoreboard**: injected, caught, decoys ignored, avg detect time, money recovered | Top of `/ops` and `/demo` | — | ✅ |
 | **Cost & time per case**: every AI call (`llm_calls`) and speech call (`speech_calls`) recorded with tokens and ₹; case header "Resolved in X s · AI cost ₹Y" with breakdown by role/model; `/ops` scoreboard adds avg resolution, avg AI cost per case, AI spend today | Open any case on `/ops/cases/<id>`, expand the cost line | verified on prod: rent_after_return → HUNTER ₹2.84 + NOTIFIER ₹0.11 = ₹2.95; `npx tsx src/config/pricing.check.ts`. Prices from claude.com/pricing and sarvam.ai/api-pricing (31 Oct): Haiku 5.5 $0.10/$0.50 (≤100K prompt), Sonnet 5.5 $2/$10, Sarvam STT ₹0.49/min, TTS bulbul:v3 ₹3 per 1K chars; USD_INR 84 | ✅ |
 
+| **Root cause + guards**: `warehouse_bug --count N --location NOIDA-2` breaks N shops at one warehouse; each is fixed individually, then Hisaab groups them (deterministic, 3+ sharing a warehouse or field agent) and the AI writes a 2-line summary + engineering ticket (amounts from the engine). Ops enables a **guard** on `/ops` → future wrong charges at that warehouse are BLOCKED for every merchant (grey shield rows on the ledger) | `pnpm inject warehouse_bug --count 5 --location NOIDA-2` → "Root cause found" card on `/ops` → View ticket → Enable guard → inject `--count 1` again: "Guarded · blocked N"; `--location GGN-1` is not blocked | `CHAKRA_API_KEY= ALLOW_LIVE_CHECKS=1 pnpm tsx scripts/check-root-cause.ts` (verified on prod: 5 shops ₹2,340 → guard blocked 4 charges, GGN-1 untouched). Disable a guard: POST `/api/root-causes/<id>/guard` `{"enabled":false}` | ✅ |
+
 ## 2. WhatsApp concierge (merchant side)
 
 | Feature | Demo it (send from the demo phone) | Status |
@@ -67,6 +69,16 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | **Statement PDF**: every settlement of the month, each deduction explained, refunds; sent as a WhatsApp document (web chat gets a download link) | "Pichle mahine ka hisaab PDF mein bhejo" (or "October ka statement bhejo") | ✅ (verified on prod via web chat; WhatsApp document test live) |
 | Handoff to human with summary | "Kisi insaan se baat karni hai" | ✅ |
 | Proactive alerts (after detection / decisions) in the merchant's chosen language, voice + text, never cut off | Inject on Demo | ✅ |
+
+## 2b. Khata: cash, expenses and udhaar
+
+| Feature | Demo it | Test it | Status |
+|---|---|---|---|
+| Voice/text → khata drafts (Hindi number words; counterparty matched in code: 30 shops incl. "<name> wale", or a customer) → confirm. Cash is self-reported and never touches detection | WhatsApp: "aaj 3400 cash aaya" → numbered drafts → "Haan" | `ALLOW_LIVE_CHECKS=1 CHECK_BASE_URL=http://localhost:3204 pnpm tsx scripts/check-khata.ts` with `CHAKRA_API_KEY= pnpm dev --port 3204` (verified: 13/13) | ✅ |
+| **NFC tap page** `/tap/<MID>?s=<sig>` (sig = HMAC with `TAP_SECRET`): hold-to-talk "Bolkar likhiye", draft cards, "Sab sahi hai", voice confirmation; text fallback. NFC sticker card on `/m/<MID>` (QR fallback, "Write to NFC sticker" on Android Chrome) | Tap the sticker / scan its QR, speak "paanch sau cash mile" | needs phone | ✅ built, test live |
+| Udhaar between shops: "Gupta Sweets ko 300 udhaar diya" → mirror entry for Gupta (PENDING) → Gupta says Haan / Nahi → CONFIRMED / DISPUTED; "Lene hain / Dene hain" on `/m` | Two shops (e.g. Ramesh + a claimed judge shop) | check-khata | ✅ |
+| Reminder that settles through Paytm: "Gupta ko reminder bhejo" → link `/pay/<creditor>?u=<entry>` prefilled with what's owed (partial OK, never more) → payment lands in the creditor's ledger, udhaar clears both sides, both get messages. Customers: QR on the dashboard (no texting numbers heard in speech) | Pay the link from another phone | check-khata (₹100 then ₹200 → cleared) | ✅ |
+| "Aaj ki kamai" = UPI (verified by Paytm) + cash (aapne bataya), expenses, net; daily summary includes udhaar movement | `/m/<MID>`, "Aaj ka hisaab batao" | check-khata | ✅ |
 
 ## 3. Payments and the shop
 
