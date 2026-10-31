@@ -45,6 +45,7 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | **Approve / Reject / Undo** (dashboard + ops-phone buttons) | Approve on WhatsApp ops phone; Undo on the case page | step 4 of demo script | ✅ built, test live |
 | **Duplicate rule+hunter findings suppressed** | — | one case, one refund per issue | ✅ |
 | **Scoreboard**: injected, caught, decoys ignored, avg detect time, money recovered | Top of `/ops` and `/demo` | — | ✅ |
+| **Cost & time per case**: every AI call (`llm_calls`) and speech call (`speech_calls`) recorded with tokens and ₹; case header "Resolved in X s · AI cost ₹Y" with breakdown by role/model; `/ops` scoreboard adds avg resolution, avg AI cost per case, AI spend today | Open any case on `/ops/cases/<id>`, expand the cost line | verified on prod: rent_after_return → HUNTER ₹2.84 + NOTIFIER ₹0.11 = ₹2.95; `npx tsx src/config/pricing.check.ts`. **Prices in `src/config/pricing.ts` are placeholders for haiku-5-5 / sonnet-5-5 / Sarvam: verify before quoting** | ✅ |
 
 ## 2. WhatsApp concierge (merchant side)
 
@@ -85,6 +86,7 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | **Reset everything** (ledgers, cases, chats, language, policy, switcher; judges' claims kept) | `/inject` or `/lab` → Reset everything (two taps) | ✅ |
 | Merchant switcher + "WhatsApp acts as this merchant" | `/m/<MID>` or `/demo` | ✅ |
 | **Claim a shop**: judge picks a shop + number, sends `CLAIM <code>` from that phone → their WhatsApp is that merchant. Ramesh reserved. Admin Remove / Remove all | `/claim` (QR on `/inject` and `/lab`); admin `/claim?k=<INJECT_TOKEN>` | ✅ (verified with fake numbers) |
+| **JOIN HISAAB**: a judge sends "JOIN HISAAB" → instantly gets a random free shop (max 15, never Ramesh or the demo phone's current shop), a Hinglish welcome, their **shop QR as an image**, then the language buttons. Payments to their shop ping their phone with text + Soundbox voice note. Claimed shops appear in the inject target picker (masked phone) | "Become a merchant" QR on `/demo`, or `/join` | ✅ built, test live with a second phone |
 | **`pnpm demo:script [--from N] [--yes]`**: walks CLAUDE.md §12 on prod, prints what Hisaab did, pauses for human steps | Terminal during rehearsal | ✅ (steps 7–8 verified live) |
 | Test lab with PASS/FAIL per anomaly, "Run all on Random" | `/lab?k=<INJECT_TOKEN>` | ✅ |
 | Template fallback when a 24 h window is closed (`hisaab_alert`, `hisaab_approval` with working Approve/Reject) | Set `WA_TEMPLATES=on` (+ `WA_TEMPLATE_LANG`) on Vercel **after Meta approves both templates** | ✅ code, ⏳ needs approval |
