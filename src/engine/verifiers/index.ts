@@ -43,8 +43,22 @@ export const REFS: Record<Check, string> = {
   payments_stopped: "{ merchant_id }",
 };
 
-export function verify(check: string, refs: unknown, ctx?: Ctx): Promise<Result> {
+// The hunter names refs in lists ({ deduction_ids: [a, b] }) while verifiers read one id
+// ({ deduction_id }). Without this, every correct hunter find was rejected as unverifiable.
+// Each listed id is tried as the singular ref until one verifies.
+export async function verify(check: string, refs: unknown, ctx?: Ctx): Promise<Result> {
   const r = (refs && typeof refs === "object" ? refs : {}) as Refs;
-  if (!isCheck(check)) return Promise.resolve({ ok: false, verdict: "OK", amount: 0, title: `Unknown check ${check}`, refs: r });
-  return verifiers[check](r, ctx);
+  if (!isCheck(check)) return { ok: false, verdict: "OK", amount: 0, title: `Unknown check ${check}`, refs: r };
+  const direct = await verifiers[check](r, ctx);
+  if (direct.ok) return direct;
+  let last = direct;
+  for (const [k, v] of Object.entries(r)) {
+    if (!k.endsWith("_ids") || !Array.isArray(v)) continue;
+    const one = k.slice(0, -4) + "_id";
+    for (const id of v.filter((x): x is string => typeof x === "string").slice(0, 10)) {
+      last = await verifiers[check]({ ...r, [one]: id }, ctx);
+      if (last.ok) return last;
+    }
+  }
+  return last;
 }
