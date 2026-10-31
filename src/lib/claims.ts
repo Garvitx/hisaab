@@ -51,6 +51,30 @@ export async function activate(fromPhone: string, code: string) {
   return { ok: true as const, merchant_id: b.merchant_id, already: false };
 }
 
+// "JOIN HISAAB" from WhatsApp: the message itself proves the phone, so the claim is ACTIVE at once,
+// on a random free shop. A phone that already holds a shop gets that one back.
+export const MAX_ACTIVE = 15;
+
+export async function join(fromPhone: string, display_name: string | null) {
+  const phone = digits(fromPhone);
+  if (reserved(phone)) return { ok: false as const, reason: "Ye number Hisaab team ke liye reserved hai." };
+  const mine = await db.phoneBinding.findUnique({ where: { phone } });
+  if (mine?.status === "ACTIVE") return { ok: true as const, merchant_id: mine.merchant_id, already: true };
+  if ((await db.phoneBinding.count({ where: { status: "ACTIVE" } })) >= MAX_ACTIVE)
+    return { ok: false as const, reason: "Maaf kijiye, abhi saari demo dukaanein le li gayi hain. Thodi der baad JOIN HISAAB dobara bhejiye." };
+  // Free = not demo and no claim by anyone else, PENDING included (that judge is mid-claim).
+  const free = await db.merchant.findMany({
+    where: { is_demo: false, id: { notIn: (await db.phoneBinding.findMany({ where: { NOT: { phone } }, select: { merchant_id: true } })).map((b) => b.merchant_id).concat("MID-0001") } },
+    select: { id: true },
+  });
+  if (!free.length) return { ok: false as const, reason: "Maaf kijiye, abhi saari demo dukaanein le li gayi hain. Thodi der baad JOIN HISAAB dobara bhejiye." };
+  // ponytail: two JOINs in the same instant can land on one shop; a unique index on active merchant_id fixes it if it ever happens.
+  const merchant_id = free[randomInt(free.length)].id;
+  const data = { merchant_id, code: String(randomInt(1000, 10000)), display_name, status: "ACTIVE" as const, activated_at: new Date() };
+  await db.phoneBinding.upsert({ where: { phone }, create: { phone, ...data }, update: { ...data, created_at: new Date() } });
+  return { ok: true as const, merchant_id, already: false };
+}
+
 export async function boundMerchant(phone: string) {
   const b = await db.phoneBinding.findUnique({ where: { phone: digits(phone) } });
   return b?.status === "ACTIVE" ? b.merchant_id : null;

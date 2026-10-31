@@ -8,7 +8,7 @@ import { ago } from "@/components/format";
 import { Panel, Pill, Skeleton } from "@/components/bits";
 import { cn } from "@/lib/utils";
 
-type ClaimRow = { id: string; merchant_id: string; phone: string; status: string; created_at: string; activated_at: string | null };
+type ClaimRow = { id: string; merchant_id: string; phone: string; display_name: string | null; status: string; created_at: string; activated_at: string | null };
 
 export function ClaimAdmin({ k }: { k: string }) {
   const [n, setN] = useState(0);
@@ -83,7 +83,10 @@ export function ClaimAdmin({ k }: { k: string }) {
                     <span className="font-semibold">{name.get(c.merchant_id) ?? c.merchant_id}</span>
                     <span className="num block text-ink-3">{c.merchant_id}</span>
                   </td>
-                  <td className="num px-4 py-2.5 whitespace-nowrap">{c.phone}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className="num">{c.phone}</span>
+                    {c.display_name && <span className="block text-ink-3">{c.display_name}</span>}
+                  </td>
                   <td className="px-4 py-2.5"><Pill t={c.status === "ACTIVE" ? "good" : "warn"}>{c.status === "ACTIVE" ? "Active" : "Pending"}</Pill></td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-ink-3">{ago(c.activated_at ?? c.created_at)}</td>
                   <td className="px-4 py-2.5 text-right">

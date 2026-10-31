@@ -17,6 +17,7 @@ const btn =
 export function InjectPanel({ k }: { k: string }) {
   const [cat, setCat] = useState<Catalog | null>(null);
   const [mids, setMids] = useState<{ id: string; business_name: string }[]>([]);
+  const [claimed, setClaimed] = useState<{ merchant_id: string; phone: string; display_name: string | null }[]>([]);
   const [mode, setMode] = useState<"demo" | "random" | "mid">("demo");
   const [mid, setMid] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -26,7 +27,12 @@ export function InjectPanel({ k }: { k: string }) {
   useEffect(() => {
     fetch("/api/inject").then((r) => (r.ok ? r.json() : Promise.reject(r.status))).then(setCat).catch(() => setCat({ types: [], decoys: [] }));
     fetch("/api/ui/merchants").then((r) => r.json()).then((m) => setMids(m)).catch(() => {});
-  }, []);
+    // Claimed shops first: injecting on one sends the alert to that judge's real phone.
+    fetch(`/api/claim?k=${encodeURIComponent(k)}`)
+      .then((r) => r.json())
+      .then((j) => setClaimed((j.claims ?? []).filter((c: { status: string }) => c.status === "ACTIVE")))
+      .catch(() => {});
+  }, [k]);
 
   const target = mode === "mid" ? mid : mode;
 
@@ -114,11 +120,22 @@ export function InjectPanel({ k }: { k: string }) {
               className="h-11 rounded-lg border border-rule bg-paper px-2 text-base"
             >
               <option value="">Choose a merchant</option>
-              {mids.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.id} {m.business_name}
-                </option>
-              ))}
+              {claimed.length > 0 && (
+                <optgroup label="Claimed phones, alerts go to WhatsApp">
+                  {claimed.map((c) => (
+                    <option key={c.merchant_id} value={c.merchant_id}>
+                      {c.display_name ?? "Judge"}, phone ••{c.phone.slice(-4)}, {mids.find((m) => m.id === c.merchant_id)?.business_name ?? c.merchant_id}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="All shops">
+                {mids.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.id} {m.business_name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           )}
         </div>
