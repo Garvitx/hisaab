@@ -240,7 +240,8 @@ export function MeraHisaab({
   useHeartbeat();
 
   // New payments and credits since the page loaded: toast each, one announcement per poll.
-  // A payment wins the voice when both land together; the credit still gets its toast.
+  // Refunds are always spoken too, queued after any payment lines (they used to be dropped
+  // whenever a payment spoke in the same poll).
   // "New" = created after this page started listening (and within 2 min) AND not seen before.
   // An id check alone re-announced old payments whenever the merchant switched or rows were
   // deleted (older payments slid into the visible window and looked new).
@@ -274,11 +275,10 @@ export function MeraHisaab({
       toast.success(`+${rest.length} more payments`, { description: `${inr(rest.reduce((a, p) => a + p.amount, 0))} in total` });
     }
     announcePayments(ok.map((p) => p.amount));
-    const spoke = ok.length > 0;
     for (const c of creds) {
       if (c.undone) continue;
-      toast.success(`${inr(c.amount)} wapas aaye`, { description: c.reason });
-      if (!spoke) announce(`Paytm par ₹${c.amount} refund prapt hue`);
+      toast.success(`Paytm refund: ${inr(c.amount)} wapas aaye`, { description: c.reason });
+      announce(`Paytm par ₹${c.amount} refund prapt hue`);
     }
   }, [m, mid]);
   const sound = useSound();
@@ -294,25 +294,43 @@ export function MeraHisaab({
 
   const [latest, ...rest] = m.settlements;
   const credited = m.credits.filter((c) => !c.undone).reduce((a, c) => a + c.amount, 0);
+  // Refunds sit in the live strip with the payments, newest first, so they're seen as money arriving.
+  type Row = { kind: "pay"; at: number; p: (typeof m.payments)[number] } | { kind: "refund"; at: number; c: (typeof m.credits)[number] };
+  const live: Row[] = [
+    ...m.payments.map((p) => ({ kind: "pay" as const, at: Date.parse(p.created_at), p })),
+    ...m.credits.filter((c) => !c.undone).map((c) => ({ kind: "refund" as const, at: Date.parse(c.created_at), c })),
+  ].sort((a, b) => b.at - a.at);
 
   const feed = (
     <>
       <Panel title="Naye payments" aside={<span className="text-sm text-ink-3">Live</span>}>
-        {m.payments.length ? (
+        {live.length ? (
           <ul className="divide-y divide-rule" aria-live="polite">
-            {m.payments.slice(0, compact ? 6 : 30).map((p) => (
-              <li key={p.id} className="row-in flex items-baseline justify-between gap-4 px-4 py-2.5">
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-ink">{p.payer}</span>
-                  <span className="num text-sm text-ink-3">
-                    {time(p.created_at)} IST{p.status !== "SUCCESS" && `, ${p.status === "PENDING" ? "pending" : p.status === "FAILED" ? "failed" : "refunded"}`}
+            {live.slice(0, compact ? 6 : 30).map((row) =>
+              row.kind === "refund" ? (
+                <li key={row.c.id} className="row-in flex items-baseline justify-between gap-4 bg-good-wash/40 px-4 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-ink">
+                      Paytm refund <span className="ml-1 rounded-full bg-good-wash px-2 py-0.5 text-xs font-semibold text-good">wapas</span>
+                    </span>
+                    <span className="num block truncate text-sm text-ink-3">{time(row.c.created_at)} IST, galat kata paisa wapas</span>
                   </span>
-                </span>
-                <span className={cn("num shrink-0 text-lg font-semibold", p.status === "SUCCESS" ? "text-good" : "text-ink-3")}>
-                  +{inr(p.amount)}
-                </span>
-              </li>
-            ))}
+                  <span className="num shrink-0 text-lg font-semibold text-good">+{inr(row.c.amount)}</span>
+                </li>
+              ) : (
+                <li key={row.p.id} className="row-in flex items-baseline justify-between gap-4 px-4 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-ink">{row.p.payer}</span>
+                    <span className="num text-sm text-ink-3">
+                      {time(row.p.created_at)} IST{row.p.status !== "SUCCESS" && `, ${row.p.status === "PENDING" ? "pending" : row.p.status === "FAILED" ? "failed" : "refunded"}`}
+                    </span>
+                  </span>
+                  <span className={cn("num shrink-0 text-lg font-semibold", row.p.status === "SUCCESS" ? "text-good" : "text-ink-3")}>
+                    +{inr(row.p.amount)}
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         ) : (
           <Empty title="Abhi koi payment nahi">Naya payment aate hi yahan dikhega aur Soundbox bolega.</Empty>
