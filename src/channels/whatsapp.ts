@@ -19,6 +19,24 @@ export function signatureOk(raw: string, header: string | null, secret = process
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
+// Chakra signs only when a secret is set in its dashboard; webight runs unsigned
+// behind an unguessable path. Each guard that is configured must pass, and at
+// least one must be configured.
+export function requestOk(
+  raw: string,
+  header: string | null,
+  pathSecret: string | undefined,
+  env: { hmac?: string; path?: string } = { hmac: process.env.CHAKRA_WEBHOOK_SECRET, path: process.env.WA_WEBHOOK_PATH_SECRET },
+) {
+  if (!env.hmac && !env.path) return false;
+  if (env.hmac && !signatureOk(raw, header, env.hmac)) return false;
+  if (env.path && !sameSecret(pathSecret, env.path)) return false;
+  return true;
+}
+
+const sameSecret = (a: string | undefined, b: string) =>
+  !!a && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
 // All three levels are arrays and Meta batches them. Status receipts carry only
 // value.statuses and flatten to nothing.
 export function messagesIn(body: any): Inbound[] {
@@ -63,7 +81,8 @@ async function send(payload: Record<string, unknown>) {
       return { ok: false, error: `send failed (${res.status})` };
     }
     const json = await res.json().catch(() => ({}));
-    return { ok: true, wamid: json?.messages?.[0]?.id as string | undefined };
+    // Chakra wraps the id as _data.whatsappMessageId; Meta's shape kept as a fallback.
+    return { ok: true, wamid: (json?._data?.whatsappMessageId ?? json?.messages?.[0]?.id) as string | undefined };
   } catch (err) {
     console.error("[wa] send threw", (err as Error)?.message || err);
     return { ok: false, error: "send failed" };

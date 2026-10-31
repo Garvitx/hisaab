@@ -1,0 +1,594 @@
+// 7 schemas: six mock Paytm silos + hisaab (our memory). See CLAUDE.md section 4.
+// Silos only reference merchant_id; no foreign keys cross a schema boundary.
+// ponytail: amounts are whole rupees (Int). Switch to paise if a fractional amount ever appears.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["merchants", "settlement", "billing", "logistics", "disputes", "lending", "hisaab"]
+}
+
+// ---------- merchants ----------
+
+enum Language {
+  hi
+  hinglish
+  en
+
+  @@schema("merchants")
+}
+
+model Merchant {
+  id            String   @id // MID-0001
+  business_name String
+  owner_name    String
+  phone         String   @unique
+  city          String
+  language      Language
+  segment       String
+  kyc_status    String   @default("VERIFIED")
+  onboarded_at  DateTime
+  is_demo       Boolean  @default(false)
+
+  @@map("merchants")
+  @@schema("merchants")
+}
+
+// ---------- settlement ----------
+
+enum PaymentStatus {
+  SUCCESS
+  PENDING
+  FAILED
+  REFUNDED
+
+  @@schema("settlement")
+}
+
+enum DeductionType {
+  RENT
+  LATE_FEE
+  DISPUTE
+  LOAN_EMI
+  FEE
+
+  @@schema("settlement")
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  merchant_id String
+  txn_ref     String        @unique
+  amount      Int
+  payer_vpa   String
+  order_ref   String?
+  status      PaymentStatus
+  created_at  DateTime      @default(now())
+
+  @@index([merchant_id, created_at])
+  @@map("payments")
+  @@schema("settlement")
+}
+
+model Settlement {
+  id               String      @id @default(cuid())
+  merchant_id      String
+  date             DateTime    @db.Date
+  gross            Int
+  deductions_total Int
+  net              Int
+  status           String      @default("SETTLED")
+  deductions       Deduction[]
+
+  @@unique([merchant_id, date])
+  @@map("settlements")
+  @@schema("settlement")
+}
+
+model Deduction {
+  id            String        @id @default(cuid())
+  settlement_id String
+  merchant_id   String
+  type          DeductionType
+  amount        Int
+  source_ref    String? // charge id / dispute id / loan id
+  created_at    DateTime      @default(now())
+  settlement    Settlement    @relation(fields: [settlement_id], references: [id], onDelete: Cascade)
+
+  @@index([merchant_id])
+  @@index([source_ref])
+  @@map("deductions")
+  @@schema("settlement")
+}
+
+model Credit {
+  id                    String   @id @default(cuid())
+  merchant_id           String
+  amount                Int
+  reason                String
+  action_id             String? // hisaab.actions.id, no FK across schemas
+  applied_settlement_id String?
+  created_at            DateTime @default(now())
+
+  @@index([merchant_id])
+  @@map("credits")
+  @@schema("settlement")
+}
+
+// ---------- billing ----------
+
+enum SubscriptionStatus {
+  ACTIVE
+  CLOSED
+
+  @@schema("billing")
+}
+
+enum ChargeKind {
+  RENT
+  LATE_FEE
+
+  @@schema("billing")
+}
+
+enum ChargeStatus {
+  BILLED
+  DEDUCTED
+  REVERSED
+
+  @@schema("billing")
+}
+
+model Subscription {
+  id           String             @id @default(cuid())
+  merchant_id  String
+  device_id    String // logistics.devices.id
+  plan         String
+  monthly_rent Int
+  status       SubscriptionStatus
+  started_at   DateTime
+  closed_at    DateTime?
+  charges      Charge[]
+
+  @@index([merchant_id])
+  @@map("subscriptions")
+  @@schema("billing")
+}
+
+model Charge {
+  id                        String       @id @default(cuid())
+  subscription_id           String
+  merchant_id               String
+  period                    String // YYYY-MM
+  kind                      ChargeKind
+  amount                    Int
+  status                    ChargeStatus
+  deducted_in_settlement_id String?
+  notice_sent_at            DateTime?
+  subscription              Subscription @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+
+  @@index([merchant_id])
+  @@map("charges")
+  @@schema("billing")
+}
+
+// ---------- logistics ----------
+
+enum DeviceModel {
+  SOUNDBOX
+  EDC
+
+  @@schema("logistics")
+}
+
+enum ReplacementStatus {
+  BOOKED
+  DISPATCHED
+  DONE
+  CANCELLED // inverse of book_replacement
+
+  @@schema("logistics")
+}
+
+enum DeviceEventType {
+  DISPATCHED
+  DELIVERED
+  PICKUP_REQUESTED
+  PICKED_UP
+  RECEIVED_AT_WAREHOUSE
+  REPLACED
+
+  @@schema("logistics")
+}
+
+model Device {
+  id                   String               @id @default(cuid())
+  serial               String               @unique
+  model                DeviceModel
+  merchant_id          String
+  last_seen_at         DateTime
+  events               DeviceEvent[]
+  replacement_requests ReplacementRequest[]
+
+  @@index([merchant_id])
+  @@map("devices")
+  @@schema("logistics")
+}
+
+model ReplacementRequest {
+  id          String            @id @default(cuid())
+  device_id   String
+  merchant_id String
+  reason      String
+  status      ReplacementStatus @default(BOOKED)
+  created_at  DateTime          @default(now())
+  device      Device            @relation(fields: [device_id], references: [id], onDelete: Cascade)
+
+  @@index([merchant_id])
+  @@map("replacement_requests")
+  @@schema("logistics")
+}
+
+model DeviceEvent {
+  id        String          @id @default(cuid())
+  device_id String
+  type      DeviceEventType
+  at        DateTime
+  actor     String
+  device    Device          @relation(fields: [device_id], references: [id], onDelete: Cascade)
+
+  @@index([device_id, at])
+  @@map("device_events")
+  @@schema("logistics")
+}
+
+// ---------- disputes ----------
+
+enum DisputeStatus {
+  OPEN
+  DEDUCTED
+  CONTESTED
+  WON
+  LOST
+
+  @@schema("disputes")
+}
+
+model Dispute {
+  id                 String        @id @default(cuid())
+  merchant_id        String
+  payment_id         String // settlement.payments.id
+  amount             Int
+  reason             String
+  raised_by_vpa      String
+  status             DisputeStatus
+  deducted_at        DateTime?
+  response_due_at    DateTime?
+  merchant_contested Boolean       @default(false)
+  response_text      String?
+  evidence           Json?
+
+  @@index([merchant_id])
+  @@map("disputes")
+  @@schema("disputes")
+}
+
+// ---------- lending ----------
+
+enum LoanStatus {
+  ACTIVE
+  SETTLED
+  CLOSED
+
+  @@schema("lending")
+}
+
+enum LoanPaymentKind {
+  EMI
+  SETTLEMENT
+
+  @@schema("lending")
+}
+
+model Loan {
+  id                      String        @id @default(cuid())
+  merchant_id             String
+  principal               Int
+  outstanding             Int
+  status                  LoanStatus
+  settlement_offer_amount Int?
+  payments                LoanPayment[]
+
+  @@index([merchant_id])
+  @@map("loans")
+  @@schema("lending")
+}
+
+model LoanPayment {
+  id      String          @id @default(cuid())
+  loan_id String
+  amount  Int
+  kind    LoanPaymentKind
+  at      DateTime
+  loan    Loan            @relation(fields: [loan_id], references: [id], onDelete: Cascade)
+
+  @@index([loan_id])
+  @@map("loan_payments")
+  @@schema("lending")
+}
+
+// ---------- hisaab (our memory) ----------
+
+enum Channel {
+  WA
+  WEB
+
+  @@schema("hisaab")
+}
+
+enum Direction {
+  IN
+  OUT
+
+  @@schema("hisaab")
+}
+
+enum Audience {
+  MERCHANT
+  OPS
+
+  @@schema("hisaab")
+}
+
+enum MessageType {
+  TEXT
+  VOICE
+  IMAGE
+  DOCUMENT
+  BUTTONS
+
+  @@schema("hisaab")
+}
+
+enum CaseSource {
+  DETECTED
+  MERCHANT_ASKED
+
+  @@schema("hisaab")
+}
+
+enum CaseStatus {
+  OPEN
+  AWAITING_MERCHANT
+  AWAITING_APPROVAL
+  RESOLVED
+  ESCALATED
+
+  @@schema("hisaab")
+}
+
+enum FindingOrigin {
+  RULE
+  HUNTER
+
+  @@schema("hisaab")
+}
+
+enum EvidenceSource {
+  LEDGER
+  MERCHANT_CLAIM
+
+  @@schema("hisaab")
+}
+
+enum Verdict {
+  WRONG
+  WARN
+  CONTESTABLE
+  MISMATCH
+  OK
+
+  @@schema("hisaab")
+}
+
+enum Tier {
+  AUTO
+  APPROVAL
+  ESCALATE
+
+  @@schema("hisaab")
+}
+
+enum ActionStatus {
+  PROPOSED
+  EXECUTED
+  PENDING
+  APPROVED
+  REJECTED
+  UNDONE
+
+  @@schema("hisaab")
+}
+
+enum DecidedVia {
+  DASHBOARD
+  WHATSAPP
+
+  @@schema("hisaab")
+}
+
+enum TraceKind {
+  DETECT
+  THINK
+  TOOL_CALL
+  TOOL_RESULT
+  POLICY
+  ACTION
+  MESSAGE
+
+  @@schema("hisaab")
+}
+
+model Conversation {
+  id              String       @id @default(cuid())
+  merchant_id     String
+  channel         Channel
+  opened_at       DateTime     @default(now())
+  last_inbound_at DateTime?
+  messages        Message[]
+  trace_events    TraceEvent[]
+
+  @@index([merchant_id])
+  @@map("conversations")
+  @@schema("hisaab")
+}
+
+model Message {
+  id              String       @id @default(cuid())
+  conversation_id String
+  direction       Direction
+  audience        Audience
+  type            MessageType
+  text            String?
+  transcript      String?
+  media_url       String?
+  wamid           String?
+  created_at      DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at])
+  @@map("messages")
+  @@schema("hisaab")
+}
+
+model Case {
+  id           String       @id @default(cuid())
+  merchant_id  String
+  source       CaseSource
+  status       CaseStatus   @default(OPEN)
+  summary      String
+  opened_at    DateTime     @default(now())
+  resolved_at  DateTime?
+  detect_ms    Int?
+  findings     Finding[]
+  actions      Action[]
+  trace_events TraceEvent[]
+
+  @@index([merchant_id])
+  @@index([status])
+  @@map("cases")
+  @@schema("hisaab")
+}
+
+model Finding {
+  id              String         @id @default(cuid())
+  case_id         String
+  origin          FindingOrigin
+  check           String // verifier name
+  title           String
+  amount          Int // engine-computed, never from the LLM
+  evidence_refs   Json
+  evidence_source EvidenceSource @default(LEDGER)
+  verified        Boolean
+  verdict         Verdict
+  case            Case           @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  actions         Action[]
+
+  @@map("findings")
+  @@schema("hisaab")
+}
+
+model Action {
+  id          String       @id @default(cuid())
+  case_id     String
+  finding_id  String?
+  type        String
+  amount      Int? // copied from the finding
+  tier        Tier
+  status      ActionStatus
+  reasoning   String?
+  inverse     Json?
+  decided_by  String?
+  decided_via DecidedVia?
+  created_at  DateTime     @default(now())
+  case        Case         @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  finding     Finding?     @relation(fields: [finding_id], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("actions")
+  @@schema("hisaab")
+}
+
+model TraceEvent {
+  id              String        @id @default(cuid())
+  case_id         String?
+  conversation_id String?
+  seq             Int
+  kind            TraceKind
+  name            String
+  payload         Json?
+  ms              Int?
+  created_at      DateTime      @default(now())
+  case            Case?         @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  conversation    Conversation? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([case_id, seq])
+  @@index([conversation_id, seq])
+  @@index([created_at])
+  @@map("trace_events")
+  @@schema("hisaab")
+}
+
+model Policy {
+  id                      Int     @id @default(1)
+  auto_limit              Int     @default(1000)
+  approval_limit          Int     @default(5000)
+  lending_always_escalate Boolean @default(true)
+
+  @@map("policy")
+  @@schema("hisaab")
+}
+
+model WaInbox {
+  wamid        String    @id
+  raw          Json
+  received_at  DateTime  @default(now())
+  processed_at DateTime?
+
+  @@map("wa_inbox")
+  @@schema("hisaab")
+}
+
+model OutboxEvent {
+  id           BigInt    @id @default(autoincrement())
+  schema       String
+  table        String
+  row_id       String
+  op           String
+  merchant_id  String?
+  created_at   DateTime  @default(now())
+  processed_at DateTime?
+
+  @@index([processed_at, id])
+  @@map("outbox_events")
+  @@schema("hisaab")
+}
+
+// Scoreboard only. The agent must never read this table (CLAUDE.md rule 3).
+model Injection {
+  id               String    @id @default(cuid())
+  type             String
+  merchant_id      String
+  is_decoy         Boolean   @default(false)
+  params           Json?
+  created_at       DateTime  @default(now())
+  detected_case_id String?
+  detected_at      DateTime?
+
+  @@map("injections")
+  @@schema("hisaab")
+}
