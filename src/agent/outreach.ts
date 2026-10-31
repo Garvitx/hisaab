@@ -7,24 +7,27 @@ import { conversationFor, logMessage, plain, ttsLang, waLang } from "./concierge
 import { approvalMessage, merchantMessage } from "./notifier";
 import { trace } from "./trace";
 import { activeDemoMid } from "@/lib/demo";
+import { phonesFor } from "@/lib/claims";
 
 // The language the merchant picked in chat, else their profile language.
 const chosen = async (m: Merchant) => waLang((await conversationFor(m.id, "WA")).language ?? m.language)!;
 
-// Real sends only ever go to the demo phone: for the seeded demo merchant, and for whichever
-// merchant the switcher has the phone acting as. The other merchants' numbers are generated
-// and may belong to strangers, so they get a dashboard-only mirror.
+// Real sends only go to phones that opted in: the host's demo phone (for the seeded demo merchant
+// or whichever shop the switcher picked) and judges who claimed a shop and verified their number.
+// The seeded merchants' own numbers are generated and may belong to strangers: mirror only.
 export async function say(m: Merchant, raw: string, o: { voice?: boolean; case_id?: string } = {}) {
   const text = plain(raw);
   const conv = await conversationFor(m.id, "WA");
   let wamid: string | undefined;
-  const phone = process.env.DEMO_MERCHANT_PHONE;
-  if (phone && (m.is_demo || m.id === (await activeDemoMid()))) {
+  const demo = process.env.DEMO_MERCHANT_PHONE;
+  const to = new Set(await phonesFor(m.id));
+  if (demo && (m.is_demo || m.id === (await activeDemoMid()))) to.add(demo);
+  for (const phone of to) {
     if (o.voice) {
       const v: { ok: boolean; wamid?: string; link?: string } = await sendVoice(phone, text, ttsLang(conv.language ?? m.language)).catch(() => ({ ok: false }));
       if (v.ok) await logMessage({ conversation_id: conv.id, direction: "OUT", type: "VOICE", text, media_url: v.link, wamid: v.wamid });
     }
-    wamid = (await sendText(phone, text)).wamid;
+    wamid = (await sendText(phone, text)).wamid ?? wamid;
   }
   await logMessage({ conversation_id: conv.id, direction: "OUT", type: "TEXT", text, wamid });
   await trace({ kind: "MESSAGE", name: wamid ? "whatsapp.sent" : "message.mirrored", case_id: o.case_id, conversation_id: conv.id, payload: { text, voice: !!o.voice } });

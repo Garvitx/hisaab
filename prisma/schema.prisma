@@ -606,3 +606,27 @@ model DemoSettings {
   @@map("demo_settings")
   @@schema("hisaab")
 }
+
+enum BindingStatus {
+  PENDING // claimed on /claim, waiting for "CLAIM <code>" from that phone
+  ACTIVE
+
+  @@schema("hisaab")
+}
+
+// A judge's WhatsApp number speaking as one merchant ("claim a shop"). A binding only turns ACTIVE
+// when the code arrives FROM that number, so nobody can point a shop at a stranger's phone.
+// Survives "Reset everything" (the user's choice); removed from /claim with the admin token.
+model PhoneBinding {
+  id           String        @id @default(cuid())
+  phone        String        @unique // digits only, e.g. 919812345678
+  merchant_id  String
+  code         String
+  status       BindingStatus @default(PENDING)
+  created_at   DateTime      @default(now())
+  activated_at DateTime?
+
+  @@index([merchant_id, status])
+  @@map("phone_bindings")
+  @@schema("hisaab")
+}

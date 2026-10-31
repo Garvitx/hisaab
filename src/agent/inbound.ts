@@ -4,6 +4,7 @@ import { stt } from "@/channels/voice";
 import { approveAction, rejectAction } from "@/engine/actions";
 import * as merchants from "@/systems/merchants";
 import { activeDemoMid } from "@/lib/demo";
+import { activate, boundMerchant } from "@/lib/claims";
 import { converse, conversationFor, logMessage, ttsLang } from "./concierge";
 import { db } from "@/lib/db";
 import { notifyDecision } from "./outreach";
@@ -28,12 +29,35 @@ export async function handleInbound({ msg }: Inbound) {
   if (typeof msg?.from !== "string" || !msg.from) return;
   if (samePhone(msg.from, process.env.OPS_EMPLOYEE_PHONE)) return ops(msg.from, parseInbound(msg));
 
-  // The demo phone speaks as whichever merchant the switcher picked; other merchants match by phone.
-  const merchant = samePhone(msg.from, process.env.DEMO_MERCHANT_PHONE)
-    ? await merchants.get(await activeDemoMid())
-    : (await merchants.list()).find((m) => samePhone(m.phone, msg.from));
-  // The number is public, so strangers will message it.
-  if (!merchant) return void (await sendText(msg.from, "Namaste! Yeh number abhi sirf registered Paytm merchants ke liye hai."));
+  // "CLAIM 1234" from the claim page: proves this phone is theirs and links it to the shop.
+  const first = parseInbound(msg);
+  const claimCode = first.kind === "text" ? /^\s*claim\s+(\d{4})\s*$/i.exec(first.text)?.[1] : undefined;
+  if (claimCode) {
+    const r = await activate(msg.from, claimCode);
+    if (!r.ok) return void (await sendText(msg.from, r.reason));
+    const m = await merchants.get(r.merchant_id);
+    if (!m) return;
+    // A fresh chat for the new owner: the previous claimer's messages and language don't carry over.
+    const c = await conversationFor(m.id, "WA");
+    if (!r.already) {
+      await db.message.deleteMany({ where: { conversation_id: c.id } });
+      await db.conversation.update({ where: { id: c.id }, data: { language: null, pending_text: null, pending_voice: false } });
+    }
+    await sendText(msg.from, `Swagat hai! Ab aap ${m.owner_name} hain, ${m.business_name} (${m.city}) ke maalik. Hisaab aapke saath is dukaan ka hisaab rakhega.`);
+    return askLanguage(msg.from, m.owner_name.split(" ")[0], c.id);
+  }
+
+  // Who is this? A claimed number speaks as its shop; the host's demo phone as the switcher's pick;
+  // the seeded shops match by phone.
+  const claimed = await boundMerchant(msg.from);
+  const merchant = claimed
+    ? await merchants.get(claimed)
+    : samePhone(msg.from, process.env.DEMO_MERCHANT_PHONE)
+      ? await merchants.get(await activeDemoMid())
+      : (await merchants.list()).find((m) => samePhone(m.phone, msg.from));
+  // The number is public, so strangers will message it: point them at the claim page.
+  if (!merchant)
+    return void (await sendText(msg.from, `Namaste! Ye Hisaab demo hai. Kisi dukaan ke maalik bankar try karne ke liye yahan shop chuniye: ${process.env.APP_URL ?? ""}/claim`));
 
   const p = parseInbound(msg);
   const conv = await conversationFor(merchant.id, "WA");
