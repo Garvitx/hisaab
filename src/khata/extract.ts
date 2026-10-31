@@ -81,8 +81,12 @@ export async function extractKhataEntries(transcript: string, merchant_id: strin
       // A span that fell back to the whole input says nothing about this entry when there are several.
       const amount = ((span !== text || out.entries.length === 1) && parseAmount(span)) || fromModel;
       const udhaar = e.kind === "UDHAAR_GIVEN" || e.kind === "UDHAAR_TAKEN";
-      const counterparty = e.counterparty.trim() ? resolveCounterparty(e.counterparty, dir.shops, dir.customers, merchant_id) : null;
-      return { kind: e.kind, amount, counterparty: udhaar || counterparty?.type === "MERCHANT" ? counterparty : null, phone: phone.length >= 10 ? phone : null, note: e.note.trim() || null, span };
+      // Only udhaar needs a counterparty. On a cash sale "Sharma ji" is a customer, not Sharma Medical
+      // Hall, so the name goes into the note and is never matched to a shop.
+      const who = e.counterparty.trim();
+      const counterparty = udhaar && who ? resolveCounterparty(who, dir.shops, dir.customers, merchant_id) : null;
+      const note = [!udhaar ? who : "", e.note.trim()].filter(Boolean).join(": ") || null;
+      return { kind: e.kind, amount, counterparty, phone: phone.length >= 10 ? phone : null, note, span };
     })
     .filter((e) => Number.isInteger(e.amount) && e.amount > 0 && e.amount <= 10_000_000);
 }

@@ -8,13 +8,14 @@ import { addDrafts, confirm, draftReply, drafts, editDraft, respond } from "./en
 import { khataPeriod, udhaarBalances } from "./balances";
 import { sendReminder } from "./settle";
 import { resolveCounterparty } from "./words";
+import { readKhataPhoto } from "./photo";
 
 type Ctx = { merchant_id: string; conversation_id: string; phone?: string | null; voice?: boolean };
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object" as const, properties, required, additionalProperties: false });
 
 export const KHATA_TOOLS: Anthropic.Tool[] = [
-  { name: "add_khata_entries", description: "The merchant told you about cash sales, cash expenses or udhaar (credit) to write in their khata: 'aaj 3400 cash aaya', '200 ka doodh liya', 'Gupta ko 300 udhaar diya'. Reads the merchant's latest message itself (never pass amounts) and saves DRAFTS only. Send the returned `reply` as it is.", input_schema: obj({}) },
+  { name: "add_khata_entries", description: "The merchant told you about cash sales, cash expenses or udhaar (credit) to write in their khata: 'aaj 3400 cash aaya', '200 ka doodh liya', 'Gupta ko 300 udhaar diya', OR sent a PHOTO of their khata page / list with a caption like 'add as income' or 'udhaar likh do'. Reads the merchant's latest message (and its photo) itself (never pass amounts) and saves DRAFTS only. Send the returned `reply` as it is.", input_schema: obj({}) },
   { name: "confirm_khata_entries", description: "The merchant said 'haan' / 'sahi hai' to the khata drafts: confirm them (all drafts, or only entry_ids). Udhaar with another Paytm shop is then sent to that shop for their Haan.", input_schema: obj({ entry_ids: { type: "array", items: { type: "string" } } }) },
   { name: "edit_khata_entry", description: "Change one khata draft before it is confirmed: the amount the merchant corrected ('300 nahi 400'), delete it, or pick who an ambiguous name meant (choice = index in that draft's choices). Only amounts the merchant said.", input_schema: obj({ entry_id: { type: "string" }, amount: { type: "integer" }, delete: { type: "boolean" }, choice: { type: "integer" } }, ["entry_id"]) },
   { name: "get_khata", description: "The merchant's khata for a period: UPI (verified by Paytm) and cash, expenses, udhaar (self-reported, 'aapne bataya'), kept apart. period: 'today', YYYY-MM-DD or YYYY-MM.", input_schema: obj({ period: { type: "string" } }) },
@@ -41,7 +42,13 @@ export async function khataTool(name: string, input: In, ctx: Ctx): Promise<unkn
   switch (name) {
     case "add_khata_entries": {
       const last = await db.message.findFirst({ where: { conversation_id: ctx.conversation_id, direction: "IN" }, orderBy: { created_at: "desc" } });
-      const said = last?.transcript ?? last?.text ?? "";
+      let said = last?.transcript ?? last?.text ?? "";
+      // A photo of the khata page: transcribe it, then extract from caption + page like any message.
+      if (last?.type === "IMAGE" && last.media_url) {
+        const page = await readKhataPhoto(last.media_url, ctx.conversation_id);
+        if (!page) return { drafts: [], reply: "Photo mein koi entry padh nahi paaya. Thodi saaf photo bhejiye, ya likh kar bataiye.", note: "Send `reply` exactly." };
+        said = `${said ? `${said}\n` : ""}${page}`;
+      }
       const r = await addDrafts(mid, said, !ctx.phone ? "DASHBOARD" : ctx.voice ? "WA_VOICE" : "WA_TEXT", ctx.conversation_id);
       return { drafts: r.drafts, reply: r.reply, note: "Send `reply` exactly. Nothing is saved for real until the merchant says haan." };
     }
