@@ -45,7 +45,7 @@ names, never values: `<INJECT_TOKEN>` from `.env.local`.
 | **Approve / Reject / Undo** (dashboard + ops-phone buttons) | Approve on WhatsApp ops phone; Undo on the case page | step 4 of demo script | ✅ built, test live |
 | **Duplicate rule+hunter findings suppressed** | — | one case, one refund per issue | ✅ |
 | **Scoreboard**: injected, caught, decoys ignored, avg detect time, money recovered | Top of `/ops` and `/demo` | — | ✅ |
-| **Cost & time per case**: every AI call (`llm_calls`) and speech call (`speech_calls`) recorded with tokens and ₹; case header "Resolved in X s · AI cost ₹Y" with breakdown by role/model; `/ops` scoreboard adds avg resolution, avg AI cost per case, AI spend today | Open any case on `/ops/cases/<id>`, expand the cost line | verified on prod: rent_after_return → HUNTER ₹2.84 + NOTIFIER ₹0.11 = ₹2.95; `npx tsx src/config/pricing.check.ts`. **Prices in `src/config/pricing.ts` are placeholders for haiku-5-5 / sonnet-5-5 / Sarvam: verify before quoting** | ✅ |
+| **Cost & time per case**: every AI call (`llm_calls`) and speech call (`speech_calls`) recorded with tokens and ₹; case header "Resolved in X s · AI cost ₹Y" with breakdown by role/model; `/ops` scoreboard adds avg resolution, avg AI cost per case, AI spend today | Open any case on `/ops/cases/<id>`, expand the cost line | verified on prod: rent_after_return → HUNTER ₹2.84 + NOTIFIER ₹0.11 = ₹2.95; `npx tsx src/config/pricing.check.ts`. Prices from claude.com/pricing and sarvam.ai/api-pricing (31 Oct): Haiku 5.5 $0.10/$0.50 (≤100K prompt), Sonnet 5.5 $2/$10, Sarvam STT ₹0.49/min, TTS bulbul:v3 ₹3 per 1K chars; USD_INR 84 | ✅ |
 
 ## 2. WhatsApp concierge (merchant side)
 
