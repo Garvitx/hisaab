@@ -26,11 +26,14 @@ const isHaryanvi = (t: string) => {
   return /[\u0900-\u097F]/.test(t) ? hits >= 1 : hits >= 2 || (hits === 1 && HINGLISH.test(t));
 };
 export function replyLanguage(text: string, o: { spoken?: string; profile: string }) {
+  const hindiScript = o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
   if (isHaryanvi(text)) return "Haryanvi (light and respectful, in the same script the merchant used)";
-  if (o.spoken) return o.spoken.startsWith("en") ? "English" : o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
-  if (/[\u0900-\u097F]/.test(text)) return "Hindi (Devanagari)";
-  if (!/[a-z]/i.test(text)) return o.profile === "en" ? "English" : o.profile === "hi" ? "Hindi (Devanagari)" : "Hinglish (Hindi in Latin letters)";
-  return HINGLISH.test(text) ? "Hinglish (Hindi in Latin letters)" : "English";
+  if (/[\u0900-\u097F]/.test(text)) return o.spoken ? hindiScript : "Hindi (Devanagari)";
+  if (!/[a-z]/i.test(text)) return o.profile === "en" ? "English" : hindiScript;
+  // English only when the whole message is English. Voice arrives romanised, so a spoken
+  // Hindi sentence answers in the merchant's usual script.
+  if (!HINGLISH.test(text)) return "English";
+  return o.spoken ? hindiScript : "Hinglish (Hindi in Latin letters)";
 }
 
 export async function conversationFor(merchant_id: string, channel: Channel) {

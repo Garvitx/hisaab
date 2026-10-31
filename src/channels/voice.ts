@@ -20,12 +20,14 @@ function key(kind: "STT" | "TTS") {
 
 const EXT: Record<string, string> = { "audio/ogg": "ogg", "audio/opus": "opus", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/aac": "aac", "audio/amr": "amr", "audio/wav": "wav", "audio/webm": "webm" };
 
-// saaras:v4 with language_code "unknown" auto-detects hi/en/code-mixed and takes OGG/Opus directly.
+// saaras:v4 takes OGG/Opus directly. mode "translit" keeps what was said, romanised: without a
+// mode it TRANSLATES Hinglish to English ("mera soundbox kharab hai" came back "My sound box is bad").
 export async function stt(audio: Buffer, mime: string): Promise<{ text: string; language?: string }> {
   const type = mime.split(";")[0].trim().toLowerCase() || "audio/ogg";
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audio)], { type }), `voice.${EXT[type] ?? "ogg"}`);
   form.append("model", "saaras:v4");
+  form.append("mode", "translit");
   form.append("language_code", "unknown");
   const res = await fetch(`${SARVAM}/speech-to-text`, {
     method: "POST",
